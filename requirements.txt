@@ -5,3 +5,4 @@ numpy
 Pillow
 matplotlib
 gdown
+opencv-python-headless
