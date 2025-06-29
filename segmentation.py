@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image
+from PIL import Image, ImageOps
 import io
 from torchvision import transforms
 import os
@@ -14,7 +14,7 @@ import gdown
 st.set_page_config(page_title="Gallbladder AI", layout="wide")
 
 # --- Descargar modelo desde Google Drive si no está localmente ---
-MODEL_ID = '12wlavHoJO_yJAchDExAFSBnKAohOKTOy'  # Reemplaza con tu ID real
+MODEL_ID = '12wlavHoJO_yJAchDExAFSBnKAohOKTOy'
 MODEL_PATH = 'mejor_modelo_clase2.pth'
 
 if not os.path.exists(MODEL_PATH):
@@ -97,32 +97,46 @@ modelo = cargar_modelo()
 
 # --- Título ---
 st.title("Evaluación Automática de la Vesícula Biliar con IA")
-st.markdown("Sube una imagen ecográfica procesada para segmentar fondo, vesícula y cálculos.")
+st.markdown("Sube una imagen ecográfica para segmentar fondo, vesícula y cálculos.")
+
+# --- Preprocesamiento seguro ---
+def preprocesar_imagen(pil_img):
+    try:
+        img = pil_img.convert("RGB")
+        img = ImageOps.exif_transpose(img)  # Corregir orientación
+        img = img.resize((384, 384))
+        tensor = transforms.ToTensor()(img).unsqueeze(0)  # [1, 3, 384, 384]
+        return tensor, img
+    except Exception as e:
+        st.error(f"Error al procesar imagen: {e}")
+        return None, None
 
 # --- Subir imagen ---
-archivo = st.file_uploader("Sube una imagen .png", type=["png"])
+archivo = st.file_uploader("Sube una imagen .png", type=["png", "jpg", "jpeg"])
 
 if archivo:
-    imagen_pil = Image.open(archivo).convert("RGB").resize((384, 384))
-    imagen_tensor = transforms.ToTensor()(imagen_pil).unsqueeze(0)
+    imagen_pil = Image.open(archivo)
+    imagen_tensor, imagen_mostrable = preprocesar_imagen(imagen_pil)
 
-    with torch.no_grad():
-        salida = modelo(imagen_tensor)
-        pred = torch.argmax(salida.squeeze(), dim=0).cpu().numpy()
+    if imagen_tensor is not None:
+        with torch.no_grad():
+            salida = modelo(imagen_tensor)
+            pred = torch.argmax(salida.squeeze(), dim=0).cpu().numpy()
 
-    # --- Visualizar resultados ---
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Imagen Original")
-        st.image(imagen_pil)
+        # --- Visualizar resultados ---
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Imagen Original")
+            st.image(imagen_mostrable)
 
-    with col2:
-        st.subheader("Segmentación")
-        cmap = plt.get_cmap("tab10")
-        fig, ax = plt.subplots()
-        ax.imshow(pred, cmap=cmap, vmin=0, vmax=2)
-        ax.set_title("0: Fondo, 1: Vesícula, 2: Cálculos")
-        ax.axis("off")
-        st.pyplot(fig)
+        with col2:
+            st.subheader("Segmentación")
+            cmap = plt.get_cmap("tab10")
+            fig, ax = plt.subplots()
+            ax.imshow(pred, cmap=cmap, vmin=0, vmax=2)
+            ax.set_title("0: Fondo, 1: Vesícula, 2: Cálculos")
+            ax.axis("off")
+            st.pyplot(fig)
 
 st.sidebar.info("Desarrollado como parte del proyecto de tesis sobre evaluación automática de la vesícula biliar.")
+
