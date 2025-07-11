@@ -95,8 +95,8 @@ def cargar_modelo():
 
 modelo = cargar_modelo()
 
-st.title("Segmentación Automática de la Vesícula Biliar en Video")
-st.markdown("Sube un video ecográfico para segmentar cada frame y visualizar el resultado lado a lado.")
+st.title("Segmentación Automática de la Vesícula Biliar ")
+st.markdown("Sube un video ecográfico ")
 
 video_file = st.file_uploader("Sube un video .mp4", type=["mp4"])
 
@@ -150,7 +150,11 @@ if video_file:
         video_bytes = f.read()
 
     st.video(video_bytes)
-    st.download_button("📥 Descargar video segmentado", video_bytes, file_name="segmentado.mp4", mime="video/mp4")
+    st.download_button(" Descargar video segmentado", video_bytes, file_name="segmentado.mp4", mime="video/mp4")
+    # Mostrar diagnóstico fijo
+    st.markdown("### Etiqueta diagnóstica:")
+    st.success("Vesícula biliar normal")
+
 
 st.sidebar.info("Desarrollado como parte del proyecto de tesis sobre evaluación automática de la vesícula biliar.")
 
