@@ -96,7 +96,7 @@ def cargar_modelo():
 modelo = cargar_modelo()
 
 # --- Título ---
-st.title("Evaluación Automática de la Vesícula Biliar con IA")
+st.title("Evaluación Automática de la Vesícula Biliar")
 st.markdown("Sube una imagen ecográfica para segmentar fondo, vesícula y cálculos.")
 
 # --- Preprocesamiento seguro ---
