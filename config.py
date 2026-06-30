@@ -47,3 +47,8 @@ FEATURE_COLUMNS_VESICLE = [
     'ves_elongation', 'ves_sphericity', 'ves_flatness', 'ves_mean', 'ves_entropy', 'ves_std',
     'ves_contrast', 'ves_homogeneity', 'ves_zone_entropy'
 ]
+DRIVE_MODELS = {
+    "unet_multiclase.pth": "1OlADqyQQ2CwpXrXz4Co-7090nJkQ66vN",
+    "unet_e1.pth": "1uB4bOgudDOfhjN_QNx_ARqiS2Kq2oOoZ",
+    "unet_e2.pth": "1k75I2ySPlSOyr1fwJZAZU8ai1Vdw9yOC",
+}
