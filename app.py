@@ -23,7 +23,7 @@ from model_downloader import ensure_multiclass, ensure_cascade
 
 
 st.set_page_config(
-    page_title="GallBladder AI",
+    page_title="Software de evaluación automática de vesícula biliar",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -82,6 +82,20 @@ st.markdown("""
     .stButton > button[kind="primary"] {
         background-color: #2d5a96;
         border-color: #2d5a96;
+        color: white;
+    }
+    .stDownloadButton > button {
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 0.5rem 1.5rem;
+        background-color: #2d5a96;
+        border-color: #2d5a96;
+        color: white;
+    }
+    .stDownloadButton > button:hover {
+        background-color: #244c7d;
+        border-color: #244c7d;
+        color: white;
     }
 
     div[data-testid="stFileUploader"] {
@@ -133,24 +147,17 @@ def render_video(video_bytes):
     )
 
 
-st.markdown("<h1 style='text-align:center; margin-bottom:0;'>GallBladder AI</h1>", unsafe_allow_html=True)
 st.markdown(
-    "<p style='text-align:center; color:#666; font-size:1rem; margin-top:0;'>"
-    "Plataforma de Analisis Ecografico Asistido por IA"
-    "</p>",
+    "<h1 style='text-align:center; margin-bottom:0;'>Software de evaluación automática de vesícula biliar</h1>",
     unsafe_allow_html=True
 )
 st.markdown("---")
 
 
 with st.sidebar:
-    st.markdown("### Configuracion del Analisis")
+    st.markdown("### Configuración del análisis")
 
-    device_label = "GPU (CUDA)" if torch.cuda.is_available() else "CPU"
-    st.markdown(f"<div class='info-card'><b>Dispositivo:</b> {device_label}</div>",
-                unsafe_allow_html=True)
-
-    st.markdown("#### 1. Modelo de Segmentacion")
+    st.markdown("#### 1. Modelo de segmentación")
     seg_choice = st.radio(
         "Selecciona la arquitectura",
         options=["Multiclase (3 clases)", "Cascada binaria (2 etapas)"],
@@ -161,76 +168,75 @@ with st.sidebar:
 
     if st.session_state.seg_mode == "multiclass":
         st.markdown(
-            "<div class='info-card'>UNet multiclase que segmenta fondo, vesicula y calculos en un solo paso. "
-            "Dice validacion: 0.928 ± 0.033.</div>",
+            "<div class='info-card'>UNet multiclase que segmenta fondo, vesícula y cálculos en un solo paso. "
+            "Dice validación: 0.928 ± 0.033.</div>",
             unsafe_allow_html=True
         )
     else:
         st.markdown(
-            "<div class='info-card'>Dos UNet binarias secuenciales: la primera detecta vesicula, "
-            "la segunda detecta calculos dentro de ella. Dice E1: 0.914 ± 0.009.</div>",
+            "<div class='info-card'>Dos UNet binarias secuenciales: la primera detecta vesícula, "
+            "la segunda detecta cálculos dentro de ella. Dice E1: 0.914 ± 0.009.</div>",
             unsafe_allow_html=True
         )
 
-    st.markdown("#### 2. Clasificacion (opcional)")
+    st.markdown("#### 2. Clasificación (opcional)")
     st.session_state.use_classifier = st.toggle(
-        "Activar diagnostico asistido",
+        "Activar diagnóstico asistido",
         value=st.session_state.use_classifier,
-        help="Extrae caracteristicas radiomicas y predice litiasis vesicular con XGBoost"
+        help="Extrae características radiómicas y predice litiasis vesicular con XGBoost"
     )
 
     if st.session_state.use_classifier:
         clf_choice = st.radio(
-            "Tipo de clasificacion",
-            options=["Basado en segmentacion (vesicula + calculos)",
-                     "Basado en caracteristicas (solo vesicula)"],
+            "Tipo de clasificación",
+            options=["Basado en segmentación (vesícula + cálculos)",
+                     "Basado en características (solo vesícula)"],
             index=0
         )
-        st.session_state.clf_mode = "full" if "segmentacion" in clf_choice else "vesicle"
+        st.session_state.clf_mode = "full" if "segmentación" in clf_choice else "vesicle"
 
-    st.markdown("#### Visualizacion")
-    opacity = st.slider("Opacidad de la mascara", 0.0, 1.0, 0.5, 0.05)
+    st.markdown("#### Visualización")
+    opacity = st.slider("Opacidad de la máscara", 0.0, 1.0, 0.5, 0.05)
 
     st.markdown("---")
     st.markdown("#### Leyenda")
     st.markdown(
         "<div style='font-size:0.85rem;'>"
         "<span style='display:inline-block; width:14px; height:14px; background:#000; border:1px solid #999; vertical-align:middle;'></span> Fondo<br>"
-        "<span style='display:inline-block; width:14px; height:14px; background:rgb(0,114,178); vertical-align:middle;'></span> Vesicula<br>"
-        "<span style='display:inline-block; width:14px; height:14px; background:rgb(213,94,0); vertical-align:middle;'></span> Calculos"
+        "<span style='display:inline-block; width:14px; height:14px; background:rgb(0,114,178); vertical-align:middle;'></span> Vesícula<br>"
+        "<span style='display:inline-block; width:14px; height:14px; background:rgb(213,94,0); vertical-align:middle;'></span> Cálculos"
         "</div>",
         unsafe_allow_html=True
     )
 
 
-tab1, tab2, tab3 = st.tabs(["Analisis", "Resultados", "Reporte"])
+tab1, tab2, tab3 = st.tabs(["Análisis", "Resultados", "Reporte"])
 
 
 with tab1:
     col_a, col_b = st.columns([1, 1])
     with col_a:
         st.markdown(
-            "<div class='info-card'><b>Flujo del analisis</b><br>"
-            "1. Carga un video ecografico (.mp4, .avi, .mov)<br>"
+            "<div class='info-card'><b>Flujo del análisis</b><br>"
+            "1. Carga un video ecográfico (.mp4, .avi, .mov)<br>"
             "2. Configura el modelo en la barra lateral<br>"
             "3. Procesa y revisa los resultados<br>"
-            "4. Exporta el reporte clinico en PDF</div>",
+            "4. Exporta el reporte clínico en PDF</div>",
             unsafe_allow_html=True
         )
     with col_b:
-        clf_label = "Si" if st.session_state.use_classifier else "No"
+        clf_label = "Sí" if st.session_state.use_classifier else "No"
         st.markdown(
-            f"<div class='info-card'><b>Configuracion activa</b><br>"
-            f"Segmentacion: {seg_choice}<br>"
-            f"Clasificacion: {clf_label}<br>"
-            f"Opacidad mascara: {int(opacity*100)}%<br>"
-            f"Dispositivo: {device_label}</div>",
+            f"<div class='info-card'><b>Configuración activa</b><br>"
+            f"Segmentación: {seg_choice}<br>"
+            f"Clasificación: {clf_label}<br>"
+            f"Opacidad de máscara: {int(opacity*100)}%</div>",
             unsafe_allow_html=True
         )
 
     st.markdown("### Carga del video")
     video_file = st.file_uploader(
-        "Selecciona un video ecografico",
+        "Selecciona un video ecográfico",
         type=["mp4", "avi", "mov"],
         label_visibility="collapsed"
     )
@@ -255,10 +261,10 @@ with tab1:
         }
 
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Duracion", f"{duration:.1f} s")
+        m1.metric("Duración", f"{duration:.1f} s")
         m2.metric("Frames", f"{frame_count}")
         m3.metric("FPS", f"{fps}")
-        m4.metric("Resolucion", f"{w}x{h}")
+        m4.metric("Resolución", f"{w}x{h}")
 
         st.markdown("---")
         run_clicked = st.button(
@@ -281,11 +287,11 @@ with tab1:
                 seg_ok = False
 
             if not seg_ok:
-                status.error("No se pudo preparar el modelo de segmentacion. Intentalo de nuevo.")
+                status.error("No se pudo preparar el modelo de segmentación. Inténtalo de nuevo.")
                 st.stop()
 
             if st.session_state.use_classifier and not classifier_available(st.session_state.clf_mode):
-                status.error("El modelo de clasificacion no esta disponible.")
+                status.error("El modelo de clasificación no está disponible.")
                 st.stop()
 
             status.info("Segmentando frames...")
@@ -303,17 +309,17 @@ with tab1:
             st.session_state.frames_data = frames_data
             st.session_state.seg_video_path = str(seg_video_path)
 
-            status.info("Identificando frame de mayor visualizacion...")
+            status.info("Identificando frame de mayor visualización...")
             best = find_best_frame(frames_data)
             st.session_state.best_frame = best
 
             if best is None or best["vesicle_area_px"] == 0:
-                st.warning("No se detecto vesicula en ningun frame del video.")
+                st.warning("No se detectó vesícula en ningún frame del video.")
                 progress.progress(1.0)
                 status.empty()
                 st.stop()
 
-            status.info("Extrayendo caracteristicas radiomicas...")
+            status.info("Extrayendo características radiómicas...")
             feat = extract_features(best["frame_rgb"], best["mask"])
             st.session_state.features_result = feat
 
@@ -325,7 +331,7 @@ with tab1:
             st.session_state.annotated_frame = annotated
 
             if st.session_state.use_classifier:
-                status.info("Realizando diagnostico asistido...")
+                status.info("Realizando diagnóstico asistido...")
                 clf = predict_label(feat["features"], st.session_state.clf_mode)
                 st.session_state.classification_result = clf
             else:
@@ -333,31 +339,33 @@ with tab1:
 
             st.session_state.processed = True
             progress.progress(1.0)
-            status.success("Analisis completado. Revisa la pestaña 'Resultados'.")
+            status.success("Análisis completado. Revisa la pestaña 'Resultados'.")
 
 
 with tab2:
     if not st.session_state.processed:
-        st.info("Procesa un video en la pestaña 'Analisis' para ver los resultados.")
+        st.info("Procesa un video en la pestaña 'Análisis' para ver los resultados.")
     else:
         st.markdown("### Video segmentado completo")
         if st.session_state.seg_video_path and Path(st.session_state.seg_video_path).exists():
             with open(st.session_state.seg_video_path, "rb") as f:
                 video_bytes = f.read()
-            c1, c2 = st.columns([3, 1])
-            with c1:
-                render_video(video_bytes)
-            with c2:
+
+            render_video(video_bytes)
+
+            d1, d2, d3 = st.columns([1, 2, 1])
+            with d2:
                 st.download_button(
                     "Descargar video segmentado",
                     data=video_bytes,
                     file_name=Path(st.session_state.seg_video_path).name,
                     mime="video/mp4",
+                    type="primary",
                     use_container_width=True
                 )
 
         st.markdown("---")
-        st.markdown("### Frame de mayor visualizacion")
+        st.markdown("### Frame de mayor visualización")
 
         feat = st.session_state.features_result
         best = st.session_state.best_frame
@@ -365,20 +373,20 @@ with tab2:
 
         c1, c2 = st.columns([2, 1])
         with c1:
-            st.image(ann, caption=f"Frame #{best['idx']} - mayor area de vesicula", use_container_width=True)
+            st.image(ann, caption=f"Frame #{best['idx']} - mayor área de vesícula", use_container_width=True)
         with c2:
             st.markdown("#### Mediciones principales")
             f = feat["features"]
-            st.metric("Area vesicular", f"{f.get('ves_area_mm2', 0):.1f} mm²")
+            st.metric("Área vesicular", f"{f.get('ves_area_mm2', 0):.1f} mm²")
             st.metric("Largo (eje mayor)", f"{f.get('ves_major_mm', 0):.1f} mm")
             st.metric("Ancho (eje menor)", f"{f.get('ves_minor_mm', 0):.1f} mm")
-            st.metric("Calculos detectados", int(f.get('num_calculi', 0)))
+            st.metric("Cálculos detectados", int(f.get('num_calculi', 0)))
             if f.get('has_calculi'):
-                st.metric("Diametro maximo calculo", f"{f.get('max_calc_diam_mm', 0):.1f} mm")
+                st.metric("Diámetro máximo cálculo", f"{f.get('max_calc_diam_mm', 0):.1f} mm")
 
         if st.session_state.classification_result:
             st.markdown("---")
-            st.markdown("### Diagnostico asistido")
+            st.markdown("### Diagnóstico asistido")
             clf = st.session_state.classification_result
             badge_class = "diag-positive" if clf["prediction"] == 1 else "diag-negative"
             st.markdown(
@@ -390,15 +398,15 @@ with tab2:
 
             if clf.get("prob_normal") is not None:
                 cc1, cc2 = st.columns(2)
-                cc1.metric("Probabilidad Normal", f"{clf['prob_normal']*100:.1f} %")
-                cc2.metric("Probabilidad Litiasis", f"{clf['prob_litiasis']*100:.1f} %")
+                cc1.metric("Probabilidad normal", f"{clf['prob_normal']*100:.1f} %")
+                cc2.metric("Probabilidad litiasis", f"{clf['prob_litiasis']*100:.1f} %")
 
         st.markdown("---")
         st.markdown("### Detalle de características")
 
         f = feat["features"]
         morpho_data = {
-            "Caracteristica": ["Area", "Largo", "Ancho", "Aspect ratio", "Elongacion",
+            "Característica": ["Área", "Largo", "Ancho", "Razón de aspecto", "Elongación",
                               "Esfericidad", "Aplanamiento"],
             "Valor": [
                 f"{f.get('ves_area_mm2', 0):.2f} mm²",
@@ -411,7 +419,7 @@ with tab2:
             ]
         }
         texture_data = {
-            "Caracteristica": ["Intensidad media", "Desviación estandar",
+            "Característica": ["Intensidad media", "Desviación estándar",
                               "Entropía first-order", "Contraste GLCM",
                               "Homogeneidad GLCM", "Entropía de zona"],
             "Valor": [
@@ -434,8 +442,8 @@ with tab2:
         if feat["calculi_info"]:
             st.markdown("#### Detalle de cálculos")
             calc_df = pd.DataFrame([
-                {"ID": f"C{c['id']}", "Diametro (mm)": round(c['diam_mm'], 2),
-                 "Area (px)": c['area_px']}
+                {"ID": f"C{c['id']}", "Diámetro (mm)": round(c['diam_mm'], 2),
+                 "Área (px)": c['area_px']}
                 for c in feat["calculi_info"]
             ])
             st.dataframe(calc_df, use_container_width=True, hide_index=True)
@@ -445,7 +453,7 @@ with tab3:
     if not st.session_state.processed:
         st.info("Procesa un video en la pestaña 'Análisis' para generar el reporte.")
     else:
-        st.markdown("### Reporte clinico en PDF")
+        st.markdown("### Reporte clínico en PDF")
         st.markdown(
             "<div class='info-card'>El reporte incluye el frame anotado con las mediciones, "
             "todas las características radiómicas extraídas, el detalle de cálculos detectados y "
@@ -478,6 +486,7 @@ with tab3:
                 data=pdf_bytes,
                 file_name=pdf_path.name,
                 mime="application/pdf",
+                type="primary",
                 use_container_width=True
             )
 
@@ -485,7 +494,7 @@ with tab3:
 st.markdown("---")
 st.markdown(
     "<div style='text-align:center; color:#999; font-size:0.78rem;'>"
-    "Software de evaluación automática de vesícula billiar."
+    "Software de evaluación automática de vesícula biliar."
     "</div>",
     unsafe_allow_html=True
 )
