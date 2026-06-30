@@ -166,18 +166,14 @@ with st.sidebar:
     )
     st.session_state.seg_mode = "multiclass" if "Multiclase" in seg_choice else "cascade"
 
-    if st.session_state.seg_mode == "multiclass":
-        st.markdown(
-            "<div class='info-card'>UNet multiclase que segmenta fondo, vesícula y cálculos en un solo paso. "
-            "Dice validación: 0.928 ± 0.033.</div>",
-            unsafe_allow_html=True
-        )
-    else:
-        st.markdown(
-            "<div class='info-card'>Dos UNet binarias secuenciales: la primera detecta vesícula, "
-            "la segunda detecta cálculos dentro de ella. Dice E1: 0.914 ± 0.009.</div>",
-            unsafe_allow_html=True
-        )
+    with st.container(border=True):
+        if st.session_state.seg_mode == "multiclass":
+            st.write("**Segmentación Multiclase**")
+            st.caption("Modelo UNet que realiza segmentación simultánea de tres clases: fondo, vesícula biliar y cálculos.")
+        else:
+            st.write("**Segmentación binaria**")
+            st.caption("Dos modelos UNet binarios secuenciales. Etapa 1: localización de vesícula biliar. Etapa 2: detección de cálculos dentro de la región identificada.")
+    
 
     st.markdown("#### 2. Clasificación (opcional)")
     st.session_state.use_classifier = st.toggle(
