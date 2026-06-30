@@ -175,7 +175,7 @@ with st.sidebar:
             st.caption("Dos modelos UNet binarios secuenciales. Etapa 1: localización de vesícula biliar. Etapa 2: detección de cálculos dentro de la región identificada.")
     
 
-    st.markdown("#### 2. Clasificación (opcional)")
+    st.markdown("#### 2. Clasificación")
     st.session_state.use_classifier = st.toggle(
         "Activar diagnóstico asistido",
         value=st.session_state.use_classifier,
