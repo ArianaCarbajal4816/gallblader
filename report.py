@@ -196,9 +196,8 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
 
     story.append(Spacer(1, 0.6 * cm))
     story.append(Paragraph(
-        "Aviso: este reporte es generado por un sistema de inteligencia artificial "
-        "como apoyo diagnóstico. No reemplaza el criterio clínico de un profesional médico.",
-        styles["small"]
+    "Este reporte ha sido generado utilizando modelos de deep learning de la tesis: \"Desarrollo de un software para la evaluación automática de la vesícula biliar utilizando imágenes de ultrasonido obtenidas mediante el protocolo de barrido volumétrico\". Es una herramienta de apoyo diagnóstico basado en IA y no reemplaza el criterio clínico profesional.",
+    styles["small"]
     ))
 
     doc.build(story)
