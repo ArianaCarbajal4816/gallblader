@@ -3,6 +3,7 @@ import torch
 import cv2
 import numpy as np
 import pandas as pd
+import base64
 from PIL import Image
 from datetime import datetime
 from pathlib import Path
@@ -117,6 +118,19 @@ def classifier_available(mode):
     if mode == "full":
         return XGB_FULL_PATH.exists()
     return XGB_VESICLE_PATH.exists()
+
+
+def render_video(video_bytes):
+    b64 = base64.b64encode(video_bytes).decode()
+    st.markdown(
+        f"""
+        <video controls autoplay loop muted style="width:100%; border-radius:8px;">
+            <source src="data:video/mp4;base64,{b64}" type="video/mp4">
+            Tu navegador no soporta video HTML5.
+        </video>
+        """,
+        unsafe_allow_html=True
+    )
 
 
 st.markdown("<h1 style='text-align:center; margin-bottom:0;'>GallBladder AI</h1>", unsafe_allow_html=True)
@@ -332,7 +346,7 @@ with tab2:
                 video_bytes = f.read()
             c1, c2 = st.columns([3, 1])
             with c1:
-                st.video(video_bytes, format="video/mp4")
+                render_video(video_bytes)
             with c2:
                 st.download_button(
                     "Descargar video segmentado",
@@ -380,7 +394,7 @@ with tab2:
                 cc2.metric("Probabilidad Litiasis", f"{clf['prob_litiasis']*100:.1f} %")
 
         st.markdown("---")
-        st.markdown("### Detalle de caracteristicas")
+        st.markdown("### Detalle de características")
 
         f = feat["features"]
         morpho_data = {
@@ -397,9 +411,9 @@ with tab2:
             ]
         }
         texture_data = {
-            "Caracteristica": ["Intensidad media", "Desviacion estandar",
-                              "Entropia first-order", "Contraste GLCM",
-                              "Homogeneidad GLCM", "Entropia de zona"],
+            "Caracteristica": ["Intensidad media", "Desviación estandar",
+                              "Entropía first-order", "Contraste GLCM",
+                              "Homogeneidad GLCM", "Entropía de zona"],
             "Valor": [
                 f"{f.get('ves_mean', 0):.2f}",
                 f"{f.get('ves_std', 0):.2f}",
@@ -411,14 +425,14 @@ with tab2:
         }
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("#### Morfometria")
+            st.markdown("#### Morfometría")
             st.table(pd.DataFrame(morpho_data))
         with c2:
             st.markdown("#### Textura")
             st.table(pd.DataFrame(texture_data))
 
         if feat["calculi_info"]:
-            st.markdown("#### Detalle de calculos")
+            st.markdown("#### Detalle de cálculos")
             calc_df = pd.DataFrame([
                 {"ID": f"C{c['id']}", "Diametro (mm)": round(c['diam_mm'], 2),
                  "Area (px)": c['area_px']}
@@ -429,13 +443,13 @@ with tab2:
 
 with tab3:
     if not st.session_state.processed:
-        st.info("Procesa un video en la pestaña 'Analisis' para generar el reporte.")
+        st.info("Procesa un video en la pestaña 'Análisis' para generar el reporte.")
     else:
         st.markdown("### Reporte clinico en PDF")
         st.markdown(
             "<div class='info-card'>El reporte incluye el frame anotado con las mediciones, "
-            "todas las caracteristicas radiomicas extraidas, el detalle de calculos detectados y "
-            "el resultado del diagnostico asistido (si fue activado).</div>",
+            "todas las características radiómicas extraídas, el detalle de cálculos detectados y "
+            "el resultado del diagnóstico asistido.</div>",
             unsafe_allow_html=True
         )
 
