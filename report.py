@@ -1,5 +1,5 @@
 import io
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
@@ -13,17 +13,18 @@ import numpy as np
 
 
 SOFTWARE_NAME = "Desarrollo de un software para la evaluación automática de la vesícula biliar"
+PERU_TZ = timezone(timedelta(hours=-5))
 
 
 def build_styles():
     base = getSampleStyleSheet()
     styles = {
-        "title": ParagraphStyle("Title", parent=base["Title"], fontSize=16,
+        "title": ParagraphStyle("Title", parent=base["Title"], fontSize=20,
                                 textColor=colors.HexColor("#1f3864"),
-                                alignment=TA_CENTER, spaceAfter=4, leading=20),
+                                alignment=TA_CENTER, spaceAfter=4, leading=24),
         "subtitle": ParagraphStyle("Subtitle", parent=base["Normal"], fontSize=11,
                                    textColor=colors.HexColor("#666666"),
-                                   alignment=TA_CENTER, spaceAfter=18),
+                                   alignment=TA_CENTER, spaceAfter=18, leading=14),
         "h2": ParagraphStyle("H2", parent=base["Heading2"], fontSize=13,
                              textColor=colors.HexColor("#2d5a96"), spaceBefore=12, spaceAfter=8),
         "body": ParagraphStyle("Body", parent=base["Normal"], fontSize=10,
@@ -80,6 +81,12 @@ def fmt(v, decimals=2, unit=""):
         return str(v)
 
 
+def classifier_label(mode):
+    if mode == "full":
+        return "XGBoost basado en segmentación"
+    return "XGBoost basado en radiómica"
+
+
 def generate_report(output_path, frame_annotated, features, calculi_info,
                     classification, segmentation_model_name, video_info):
     styles = build_styles()
@@ -91,21 +98,17 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
 
     story = []
 
-    story.append(Paragraph(SOFTWARE_NAME, styles["title"]))
-    story.append(Paragraph("Reporte de análisis ecográfico", styles["subtitle"]))
+    story.append(Paragraph("Reporte de análisis ecográfico", styles["title"]))
+    story.append(Paragraph(SOFTWARE_NAME, styles["subtitle"]))
 
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.now(PERU_TZ).strftime("%Y-%m-%d %H:%M:%S")
     meta_rows = [
         ["Parámetro", "Valor"],
-        ["Fecha de análisis", timestamp],
+        ["Fecha y hora de análisis", f"{timestamp} (Perú)"],
         ["Modelo de segmentación", segmentation_model_name],
-        ["Duración del video", f"{video_info.get('duration', 0):.1f} s"],
-        ["Total de frames", str(video_info.get('frames', 0))],
-        ["FPS", str(video_info.get('fps', 0))],
     ]
     if classification:
-        clf_mode = "Completo (vesícula + cálculos)" if classification.get("mode") == "full" else "Solo vesícula"
-        meta_rows.append(["Modelo de clasificación", clf_mode])
+        meta_rows.append(["Modelo de clasificación", classifier_label(classification.get("mode"))])
     story.append(metric_table(meta_rows))
     story.append(Spacer(1, 0.4 * cm))
 
