@@ -12,12 +12,15 @@ from PIL import Image
 import numpy as np
 
 
+SOFTWARE_NAME = "Desarrollo de un software para la evaluación automática de la vesícula biliar"
+
+
 def build_styles():
     base = getSampleStyleSheet()
     styles = {
-        "title": ParagraphStyle("Title", parent=base["Title"], fontSize=20,
+        "title": ParagraphStyle("Title", parent=base["Title"], fontSize=16,
                                 textColor=colors.HexColor("#1f3864"),
-                                alignment=TA_CENTER, spaceAfter=6),
+                                alignment=TA_CENTER, spaceAfter=4, leading=20),
         "subtitle": ParagraphStyle("Subtitle", parent=base["Normal"], fontSize=11,
                                    textColor=colors.HexColor("#666666"),
                                    alignment=TA_CENTER, spaceAfter=18),
@@ -88,41 +91,41 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
 
     story = []
 
-    story.append(Paragraph("Reporte de Analisis Ecografico", styles["title"]))
-    story.append(Paragraph("Vesicula Biliar - Sistema Asistido por IA", styles["subtitle"]))
+    story.append(Paragraph(SOFTWARE_NAME, styles["title"]))
+    story.append(Paragraph("Reporte de análisis ecográfico", styles["subtitle"]))
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     meta_rows = [
-        ["Parametro", "Valor"],
-        ["Fecha de analisis", timestamp],
-        ["Modelo de segmentacion", segmentation_model_name],
-        ["Duracion del video", f"{video_info.get('duration', 0):.1f} s"],
+        ["Parámetro", "Valor"],
+        ["Fecha de análisis", timestamp],
+        ["Modelo de segmentación", segmentation_model_name],
+        ["Duración del video", f"{video_info.get('duration', 0):.1f} s"],
         ["Total de frames", str(video_info.get('frames', 0))],
         ["FPS", str(video_info.get('fps', 0))],
     ]
     if classification:
-        clf_mode = "Completo (vesicula + calculos)" if classification.get("mode") == "full" else "Solo vesicula"
-        meta_rows.append(["Modelo de clasificacion", clf_mode])
+        clf_mode = "Completo (vesícula + cálculos)" if classification.get("mode") == "full" else "Solo vesícula"
+        meta_rows.append(["Modelo de clasificación", clf_mode])
     story.append(metric_table(meta_rows))
     story.append(Spacer(1, 0.4 * cm))
 
     if classification is not None:
-        story.append(Paragraph("Diagnostico Asistido", styles["h2"]))
+        story.append(Paragraph("Diagnóstico asistido", styles["h2"]))
         diag_style = styles["diag_positive"] if classification["prediction"] == 1 else styles["diag_negative"]
         story.append(Paragraph(classification["label"], diag_style))
 
         prob_rows = [["Etiqueta", "Probabilidad"]]
         if classification.get("prob_normal") is not None:
-            prob_rows.append(["Vesicula Normal", fmt(classification["prob_normal"] * 100, 1, " %")])
-            prob_rows.append(["Litiasis Vesicular", fmt(classification["prob_litiasis"] * 100, 1, " %")])
+            prob_rows.append(["Vesícula normal", fmt(classification["prob_normal"] * 100, 1, " %")])
+            prob_rows.append(["Litiasis vesicular", fmt(classification["prob_litiasis"] * 100, 1, " %")])
             story.append(metric_table(prob_rows))
         story.append(Spacer(1, 0.4 * cm))
 
-    story.append(Paragraph("Frame de Mayor Visualizacion", styles["h2"]))
+    story.append(Paragraph("Frame de mayor visualización", styles["h2"]))
     story.append(Paragraph(
-        "Frame seleccionado automaticamente como el de mayor area vesicular. "
-        "Las lineas indican el largo (naranja) y ancho (azul) maximos. "
-        "Los calculos detectados aparecen marcados en amarillo.",
+        "Frame seleccionado automáticamente como el de mayor área vesicular. "
+        "Las líneas indican el largo (naranja) y ancho (azul) máximos. "
+        "Los cálculos detectados aparecen marcados en amarillo.",
         styles["body"]
     ))
     story.append(Spacer(1, 0.3 * cm))
@@ -131,49 +134,49 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
 
     story.append(PageBreak())
 
-    story.append(Paragraph("Caracteristicas Morfometricas - Vesicula", styles["h2"]))
+    story.append(Paragraph("Características morfométricas - vesícula", styles["h2"]))
     morpho_rows = [
-        ["Caracteristica", "Valor"],
-        ["Area", fmt(features.get("ves_area_mm2"), 2, " mm²")],
+        ["Característica", "Valor"],
+        ["Área", fmt(features.get("ves_area_mm2"), 2, " mm²")],
         ["Largo (eje mayor)", fmt(features.get("ves_major_mm"), 2, " mm")],
         ["Ancho (eje menor)", fmt(features.get("ves_minor_mm"), 2, " mm")],
-        ["Razon de aspecto", fmt(features.get("ves_aspect_ratio"), 3)],
-        ["Elongacion", fmt(features.get("ves_elongation"), 3)],
+        ["Razón de aspecto", fmt(features.get("ves_aspect_ratio"), 3)],
+        ["Elongación", fmt(features.get("ves_elongation"), 3)],
         ["Esfericidad", fmt(features.get("ves_sphericity"), 3)],
         ["Aplanamiento", fmt(features.get("ves_flatness"), 3)],
     ]
     story.append(metric_table(morpho_rows))
     story.append(Spacer(1, 0.4 * cm))
 
-    story.append(Paragraph("Caracteristicas de Textura - Vesicula", styles["h2"]))
+    story.append(Paragraph("Características de textura - vesícula", styles["h2"]))
     texture_rows = [
-        ["Caracteristica", "Valor"],
+        ["Característica", "Valor"],
         ["Intensidad media", fmt(features.get("ves_mean"), 2)],
-        ["Desviacion estandar", fmt(features.get("ves_std"), 2)],
-        ["Entropia (first-order)", fmt(features.get("ves_entropy"), 3)],
+        ["Desviación estándar", fmt(features.get("ves_std"), 2)],
+        ["Entropía (first-order)", fmt(features.get("ves_entropy"), 3)],
         ["Contraste (GLCM)", fmt(features.get("ves_contrast"), 3)],
         ["Homogeneidad (GLCM)", fmt(features.get("ves_homogeneity"), 3)],
-        ["Entropia de zona", fmt(features.get("ves_zone_entropy"), 3)],
+        ["Entropía de zona", fmt(features.get("ves_zone_entropy"), 3)],
     ]
     story.append(metric_table(texture_rows))
     story.append(Spacer(1, 0.4 * cm))
 
-    story.append(Paragraph("Analisis de Calculos", styles["h2"]))
+    story.append(Paragraph("Análisis de cálculos", styles["h2"]))
     if features.get("has_calculi") == 1 and calculi_info:
         summary = [
             ["Resumen", "Valor"],
-            ["Calculos detectados", str(int(features.get("num_calculi", 0)))],
-            ["Diametro maximo", fmt(features.get("max_calc_diam_mm"), 2, " mm")],
-            ["Entropia (calculo mayor)", fmt(features.get("calc_entropy"), 3)],
-            ["Contraste (calculo mayor)", fmt(features.get("calc_contrast"), 3)],
+            ["Cálculos detectados", str(int(features.get("num_calculi", 0)))],
+            ["Diámetro máximo", fmt(features.get("max_calc_diam_mm"), 2, " mm")],
+            ["Entropía (cálculo mayor)", fmt(features.get("calc_entropy"), 3)],
+            ["Contraste (cálculo mayor)", fmt(features.get("calc_contrast"), 3)],
         ]
         story.append(metric_table(summary))
         story.append(Spacer(1, 0.3 * cm))
 
-        detail_rows = [["ID", "Diametro (mm)", "Area (px)"]]
+        detail_rows = [["ID", "Diámetro (mm)", "Área (px)"]]
         for c in calculi_info:
             detail_rows.append([f"C{c['id']}", fmt(c["diam_mm"], 2), str(c["area_px"])])
-        story.append(Paragraph("Detalle por calculo:", styles["body"]))
+        story.append(Paragraph("Detalle por cálculo:", styles["body"]))
         detail_table = Table(detail_rows, colWidths=[3 * cm, 5 * cm, 5 * cm])
         detail_table.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e9eef7")),
@@ -186,12 +189,12 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
         ]))
         story.append(detail_table)
     else:
-        story.append(Paragraph("No se detectaron calculos en el frame analizado.", styles["body"]))
+        story.append(Paragraph("No se detectaron cálculos en el frame analizado.", styles["body"]))
 
     story.append(Spacer(1, 0.6 * cm))
     story.append(Paragraph(
-        "Aviso: Este reporte es generado por un sistema de inteligencia artificial "
-        "como apoyo diagnostico. No reemplaza el criterio clinico de un profesional medico.",
+        "Aviso: este reporte es generado por un sistema de inteligencia artificial "
+        "como apoyo diagnóstico. No reemplaza el criterio clínico de un profesional médico.",
         styles["small"]
     ))
 
