@@ -185,8 +185,8 @@ with st.sidebar:
     if st.session_state.use_classifier:
         clf_choice = st.radio(
             "Tipo de clasificación",
-            options=["Basado en segmentación (vesícula + cálculos)",
-                     "Basado en características (solo vesícula)"],
+            options=["Basado en segmentación ",
+                     "Basado en características"],
             index=0
         )
         st.session_state.clf_mode = "full" if "segmentación" in clf_choice else "vesicle"
