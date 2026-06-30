@@ -19,15 +19,15 @@ def preprocess_frame(frame_bgr):
 
 
 def load_multiclass_model():
-    model = UNet(in_channels=3, out_channels=3, filters=32)
+    model = UNet(in_channels=3, out_channels=3, filters=64)
     model.load_state_dict(torch.load(UNET_MULTICLASS_PATH, map_location=DEVICE))
     model.to(DEVICE).eval()
     return model
 
 
 def load_cascade_models():
-    m1 = UNet(in_channels=3, out_channels=2, filters=32)
-    m2 = UNet(in_channels=3, out_channels=2, filters=32)
+    m1 = UNet(in_channels=3, out_channels=2, filters=64)
+    m2 = UNet(in_channels=3, out_channels=2, filters=64)
     m1.load_state_dict(torch.load(UNET_E1_PATH, map_location=DEVICE))
     m2.load_state_dict(torch.load(UNET_E2_PATH, map_location=DEVICE))
     m1.to(DEVICE).eval()
