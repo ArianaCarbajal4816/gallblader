@@ -18,6 +18,7 @@ from radiomics import extract_features
 from classifier import predict_label
 from measurements import annotate_best_frame
 from report import generate_report
+from model_downloader import ensure_multiclass, ensure_cascade
 
 
 st.set_page_config(
@@ -112,14 +113,10 @@ for key, default in [
         st.session_state[key] = default
 
 
-def model_files_status():
-    return {
-        "Multiclase (unet_multiclase.pth)": UNET_MULTICLASS_PATH.exists(),
-        "Cascada Etapa 1 (unet_e1.pth)": UNET_E1_PATH.exists(),
-        "Cascada Etapa 2 (unet_e2.pth)": UNET_E2_PATH.exists(),
-        "XGBoost completo (xgboost_radiomics.pkl)": XGB_FULL_PATH.exists(),
-        "XGBoost solo vesicula (xgboost_radiomics_std.pkl)": XGB_VESICLE_PATH.exists(),
-    }
+def classifier_available(mode):
+    if mode == "full":
+        return XGB_FULL_PATH.exists()
+    return XGB_VESICLE_PATH.exists()
 
 
 st.markdown("<h1 style='text-align:center; margin-bottom:0;'>GallBladder AI</h1>", unsafe_allow_html=True)
@@ -191,17 +188,6 @@ with st.sidebar:
         unsafe_allow_html=True
     )
 
-    st.markdown("---")
-    st.markdown("#### Estado de los modelos")
-    statuses = model_files_status()
-    for name, ok in statuses.items():
-        icon = "OK" if ok else "FALTA"
-        color = "#1b5e20" if ok else "#b71c1c"
-        st.markdown(
-            f"<div style='font-size:0.78rem; color:{color};'>[{icon}] {name}</div>",
-            unsafe_allow_html=True
-        )
-
 
 tab1, tab2, tab3 = st.tabs(["Analisis", "Resultados", "Reporte"])
 
@@ -268,24 +254,26 @@ with tab1:
         )
 
         if run_clicked:
-            statuses = model_files_status()
-            seg_ok = (statuses["Multiclase (unet_multiclase.pth)"]
-                      if st.session_state.seg_mode == "multiclass"
-                      else (statuses["Cascada Etapa 1 (unet_e1.pth)"] and statuses["Cascada Etapa 2 (unet_e2.pth)"]))
-            if not seg_ok:
-                st.error("Faltan los archivos de modelo para la segmentacion seleccionada. "
-                         "Colocarlos en la carpeta 'models/'.")
-                st.stop()
-            if st.session_state.use_classifier:
-                clf_ok = (statuses["XGBoost completo (xgboost_radiomics.pkl)"]
-                          if st.session_state.clf_mode == "full"
-                          else statuses["XGBoost solo vesicula (xgboost_radiomics_std.pkl)"])
-                if not clf_ok:
-                    st.error("Falta el archivo del modelo XGBoost seleccionado.")
-                    st.stop()
-
             progress = st.progress(0.0)
             status = st.empty()
+
+            status.info("Preparando modelo...")
+            try:
+                if st.session_state.seg_mode == "multiclass":
+                    seg_ok = ensure_multiclass()
+                else:
+                    seg_ok = ensure_cascade()
+            except Exception:
+                seg_ok = False
+
+            if not seg_ok:
+                status.error("No se pudo preparar el modelo de segmentacion. Intentalo de nuevo.")
+                st.stop()
+
+            if st.session_state.use_classifier and not classifier_available(st.session_state.clf_mode):
+                status.error("El modelo de clasificacion no esta disponible.")
+                st.stop()
+
             status.info("Segmentando frames...")
 
             seg_video_path = OUTPUT_DIR / f"segmentado_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
@@ -483,7 +471,7 @@ with tab3:
 st.markdown("---")
 st.markdown(
     "<div style='text-align:center; color:#999; font-size:0.78rem;'>"
-    "GallBladder AI - Sistema de apoyo diagnostico. No reemplaza el criterio clinico profesional."
+    "Software de evaluación automática de vesícula billiar."
     "</div>",
     unsafe_allow_html=True
 )
