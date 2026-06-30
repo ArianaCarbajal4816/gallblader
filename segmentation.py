@@ -1,142 +1,124 @@
-import streamlit as st
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
-import matplotlib.pyplot as plt
-from PIL import Image, ImageOps
-import io
+import cv2
+from PIL import Image, ImageEnhance
 from torchvision import transforms
-import os
-import gdown
 
-# --- Configuración de la página ---
-st.set_page_config(page_title="Gallbladder AI", layout="wide")
+from models_arch import UNet
+from config import DEVICE, INPUT_SIZE, CLASS_COLORS, UNET_MULTICLASS_PATH, UNET_E1_PATH, UNET_E2_PATH
 
-# --- Descargar modelo desde Google Drive si no está localmente ---
-MODEL_ID = '12wlavHoJO_yJAchDExAFSBnKAohOKTOy'
-MODEL_PATH = 'mejor_modelo_clase2.pth'
 
-if not os.path.exists(MODEL_PATH):
-    gdown.download(f'https://drive.google.com/uc?id={MODEL_ID}', MODEL_PATH, quiet=False)
+def preprocess_frame(frame_bgr):
+    frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+    frame_pil = Image.fromarray(frame_rgb).resize(INPUT_SIZE)
+    enhancer = ImageEnhance.Contrast(frame_pil)
+    frame_pil = enhancer.enhance(1.5)
+    frame_np = np.array(frame_pil)
+    tensor = transforms.ToTensor()(frame_np).unsqueeze(0).to(DEVICE)
+    return tensor, frame_np
 
-# --- Definición de arquitectura UNet y bloques ---
-class EncoderBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, dropout_prob=0.0, max_pooling=True):
-        super().__init__()
-        self.max_pooling = max_pooling
-        self.conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.BatchNorm2d(out_channels),
-            nn.Dropout2d(p=dropout_prob)
-        )
-        self.pool = nn.MaxPool2d(2)
 
-    def forward(self, x):
-        x = self.conv(x)
-        skip = x
-        if self.max_pooling:
-            x = self.pool(x)
-        return x, skip
-
-class DecoderBlock(nn.Module):
-    def __init__(self, in_channels, mid_channels, out_channels):
-        super().__init__()
-        self.up = nn.ConvTranspose2d(in_channels, mid_channels, kernel_size=2, stride=2)
-        self.conv = nn.Sequential(
-            nn.Conv2d(mid_channels * 2, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU()
-        )
-
-    def forward(self, x, skip):
-        x = self.up(x)
-        x = torch.cat([x, skip], dim=1)
-        x = self.conv(x)
-        return x
-
-class UNet(nn.Module):
-    def __init__(self, in_channels=3, out_channels=3, filters=32):
-        super().__init__()
-        self.enc1 = EncoderBlock(in_channels, filters)
-        self.enc2 = EncoderBlock(filters, filters*2)
-        self.enc3 = EncoderBlock(filters*2, filters*4)
-        self.enc4 = EncoderBlock(filters*4, filters*8, dropout_prob=0.3)
-        self.center = EncoderBlock(filters*8, filters*16, dropout_prob=0.3, max_pooling=False)
-        self.dec4 = DecoderBlock(filters*16, filters*8, filters*8)
-        self.dec3 = DecoderBlock(filters*8, filters*4, filters*4)
-        self.dec2 = DecoderBlock(filters*4, filters*2, filters*2)
-        self.dec1 = DecoderBlock(filters*2, filters, filters)
-        self.final = nn.Conv2d(filters, out_channels, kernel_size=1)
-
-    def forward(self, x):
-        x1, s1 = self.enc1(x)
-        x2, s2 = self.enc2(x1)
-        x3, s3 = self.enc3(x2)
-        x4, s4 = self.enc4(x3)
-        x5, _ = self.center(x4)
-        x = self.dec4(x5, s4)
-        x = self.dec3(x, s3)
-        x = self.dec2(x, s2)
-        x = self.dec1(x, s1)
-        return self.final(x)
-
-# --- Cargar modelo ---
-@st.cache_resource
-def cargar_modelo():
+def load_multiclass_model():
     model = UNet(in_channels=3, out_channels=3, filters=32)
-    model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
-    model.eval()
+    model.load_state_dict(torch.load(UNET_MULTICLASS_PATH, map_location=DEVICE))
+    model.to(DEVICE).eval()
     return model
 
-modelo = cargar_modelo()
 
-# --- Título ---
-st.title("Evaluación Automática de la Vesícula Biliar")
-st.markdown("Sube una imagen ecográfica para segmentar fondo, vesícula y cálculos.")
+def load_cascade_models():
+    m1 = UNet(in_channels=3, out_channels=2, filters=32)
+    m2 = UNet(in_channels=3, out_channels=2, filters=32)
+    m1.load_state_dict(torch.load(UNET_E1_PATH, map_location=DEVICE))
+    m2.load_state_dict(torch.load(UNET_E2_PATH, map_location=DEVICE))
+    m1.to(DEVICE).eval()
+    m2.to(DEVICE).eval()
+    return m1, m2
 
-# --- Preprocesamiento seguro ---
-def preprocesar_imagen(pil_img):
-    try:
-        img = pil_img.convert("RGB")
-        img = ImageOps.exif_transpose(img)  # Corregir orientación
-        img = img.resize((384, 384))
-        tensor = transforms.ToTensor()(img).unsqueeze(0)  # [1, 3, 384, 384]
-        return tensor, img
-    except Exception as e:
-        st.error(f"Error al procesar imagen: {e}")
-        return None, None
 
-# --- Subir imagen ---
-archivo = st.file_uploader("Sube una imagen .png", type=["png", "jpg", "jpeg"])
+def predict_multiclass(tensor, model):
+    with torch.no_grad():
+        out = model(tensor)
+        mask = torch.argmax(out.squeeze(), dim=0).byte().cpu().numpy()
+    return mask
 
-if archivo:
-    imagen_pil = Image.open(archivo)
-    imagen_tensor, imagen_mostrable = preprocesar_imagen(imagen_pil)
 
-    if imagen_tensor is not None:
-        with torch.no_grad():
-            salida = modelo(imagen_tensor)
-            pred = torch.argmax(salida.squeeze(), dim=0).cpu().numpy()
+def predict_cascade(tensor, m1, m2):
+    with torch.no_grad():
+        out1 = m1(tensor)
+        mask1 = torch.argmax(out1.squeeze(), dim=0).byte().cpu().numpy()
+        out2 = m2(tensor)
+        mask2 = torch.argmax(out2.squeeze(), dim=0).byte().cpu().numpy()
+        combined = np.zeros_like(mask1)
+        combined[mask1 == 1] = mask2[mask1 == 1] + 1
+    return combined
 
-        # --- Visualizar resultados ---
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Imagen Original")
-            st.image(imagen_mostrable)
 
-        with col2:
-            st.subheader("Segmentación")
-            cmap = plt.get_cmap("tab10")
-            fig, ax = plt.subplots()
-            ax.imshow(pred, cmap=cmap, vmin=0, vmax=2)
-            ax.set_title("0: Fondo, 1: Vesícula, 2: Cálculos")
-            ax.axis("off")
-            st.pyplot(fig)
+def mask_to_rgb(mask):
+    h, w = mask.shape
+    rgb = np.zeros((h, w, 3), dtype=np.uint8)
+    for cls, color in CLASS_COLORS.items():
+        rgb[mask == cls] = color
+    return rgb
 
-st.sidebar.info("Desarrollado como parte del proyecto de tesis sobre evaluación automática de la vesícula biliar.")
 
+def overlay_mask(frame_rgb, mask, alpha=0.5):
+    rgb_mask = mask_to_rgb(mask)
+    blended = cv2.addWeighted(frame_rgb.astype(np.uint8), 1 - alpha, rgb_mask, alpha, 0)
+    return blended
+
+
+def segment_video(video_path, output_path, model_type, opacity=0.5, progress_callback=None):
+    if model_type == "multiclass":
+        model = load_multiclass_model()
+        m1, m2 = None, None
+    else:
+        m1, m2 = load_cascade_models()
+        model = None
+
+    cap = cv2.VideoCapture(str(video_path))
+    fps = int(cap.get(cv2.CAP_PROP_FPS)) or 25
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(str(output_path), fourcc, fps, (INPUT_SIZE[0] * 2, INPUT_SIZE[1]))
+
+    frames_data = []
+    idx = 0
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        tensor, rgb_frame = preprocess_frame(frame)
+
+        if model_type == "multiclass":
+            mask = predict_multiclass(tensor, model)
+        else:
+            mask = predict_cascade(tensor, m1, m2)
+
+        overlay = overlay_mask(rgb_frame, mask, alpha=opacity)
+        combined = np.concatenate((rgb_frame, overlay), axis=1)
+        combined_bgr = cv2.cvtColor(combined, cv2.COLOR_RGB2BGR)
+        out.write(combined_bgr)
+
+        vesicle_area = int(np.sum(mask >= 1))
+        frames_data.append({
+            "idx": idx,
+            "frame_rgb": rgb_frame.copy(),
+            "mask": mask.copy(),
+            "vesicle_area_px": vesicle_area
+        })
+
+        idx += 1
+        if progress_callback:
+            progress_callback(idx / frame_count if frame_count else 0)
+
+    cap.release()
+    out.release()
+    return frames_data, fps
+
+
+def find_best_frame(frames_data):
+    if not frames_data:
+        return None
+    return max(frames_data, key=lambda f: f["vesicle_area_px"])
