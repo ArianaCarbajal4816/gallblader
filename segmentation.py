@@ -1,6 +1,9 @@
 import torch
 import numpy as np
 import cv2
+import subprocess
+import shutil
+from pathlib import Path
 from PIL import Image, ImageEnhance
 from torchvision import transforms
 
@@ -8,8 +11,11 @@ from models_arch import UNet
 from config import DEVICE, INPUT_SIZE, CLASS_COLORS, UNET_MULTICLASS_PATH, UNET_E1_PATH, UNET_E2_PATH
 
 
+CROP_ROI = (230, 90, 650, 440)
+
+
 def preprocess_frame(frame_bgr):
-    x, y, w, h = 230, 90, 650, 440
+    x, y, w, h = CROP_ROI
     fh, fw = frame_bgr.shape[:2]
     if fw >= x + w and fh >= y + h:
         frame_bgr = frame_bgr[y:y + h, x:x + w]
@@ -72,6 +78,25 @@ def overlay_mask(frame_rgb, mask, alpha=0.5):
     return blended
 
 
+def reencode_h264(input_path, output_path):
+    if not shutil.which("ffmpeg"):
+        return False
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", str(input_path),
+                "-vcodec", "libx264", "-pix_fmt", "yuv420p",
+                "-preset", "fast", "-crf", "23",
+                "-movflags", "+faststart",
+                str(output_path)
+            ],
+            capture_output=True, timeout=300
+        )
+        return result.returncode == 0 and Path(output_path).exists()
+    except Exception:
+        return False
+
+
 def segment_video(video_path, output_path, model_type, opacity=0.5, progress_callback=None):
     if model_type == "multiclass":
         model = load_multiclass_model()
@@ -84,8 +109,11 @@ def segment_video(video_path, output_path, model_type, opacity=0.5, progress_cal
     fps = int(cap.get(cv2.CAP_PROP_FPS)) or 25
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
+    output_path = Path(output_path)
+    tmp_path = output_path.with_name(output_path.stem + "_raw.mp4")
+
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    out = cv2.VideoWriter(str(output_path), fourcc, fps, (INPUT_SIZE[0] * 2, INPUT_SIZE[1]))
+    out = cv2.VideoWriter(str(tmp_path), fourcc, fps, (INPUT_SIZE[0] * 2, INPUT_SIZE[1]))
 
     frames_data = []
     idx = 0
@@ -120,6 +148,12 @@ def segment_video(video_path, output_path, model_type, opacity=0.5, progress_cal
 
     cap.release()
     out.release()
+
+    if reencode_h264(tmp_path, output_path):
+        tmp_path.unlink(missing_ok=True)
+    else:
+        tmp_path.replace(output_path)
+
     return frames_data, fps
 
 
