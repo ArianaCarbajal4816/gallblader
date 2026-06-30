@@ -332,7 +332,7 @@ with tab2:
                 video_bytes = f.read()
             c1, c2 = st.columns([3, 1])
             with c1:
-                st.video(video_bytes)
+                st.video(video_bytes, format="video/mp4")
             with c2:
                 st.download_button(
                     "Descargar video segmentado",
