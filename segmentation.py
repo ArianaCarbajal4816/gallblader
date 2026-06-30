@@ -9,6 +9,11 @@ from config import DEVICE, INPUT_SIZE, CLASS_COLORS, UNET_MULTICLASS_PATH, UNET_
 
 
 def preprocess_frame(frame_bgr):
+    x, y, w, h = 230, 90, 650, 440
+    fh, fw = frame_bgr.shape[:2]
+    if fw >= x + w and fh >= y + h:
+        frame_bgr = frame_bgr[y:y + h, x:x + w]
+
     frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
     frame_pil = Image.fromarray(frame_rgb).resize(INPUT_SIZE)
     enhancer = ImageEnhance.Contrast(frame_pil)
