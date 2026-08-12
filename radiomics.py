@@ -92,15 +92,21 @@ def feret_measurements(coords):
     except Exception:
         return 0.0, 0.0, 0.0, 0.0, pts[0], pts[0], pts[0], pts[0]
 
+
     D = distance_matrix(hull_pts_mm, hull_pts_mm)
     i, j = np.unravel_index(D.argmax(), D.shape)
     largo_mm = float(D[i, j])
     L1_px, L2_px = hull_pts_px[i], hull_pts_px[j]
 
-    C = pts_mm - pts_mm.mean(0)
+
+    centro_mm = pts_mm.mean(0)
+    C = pts_mm - centro_mm
     evals, evecs = np.linalg.eigh(np.cov(C.T))
+    
     eje_mayor = evecs[:, np.argmax(evals)]
-    eje_menor = evecs[:, np.argmin(evals)]
+    eje_menor = evecs[:, np.argmin(evals)] 
+    
+   
     proj_largo = C @ eje_mayor
     proj_ancho = C @ eje_menor
 
@@ -108,27 +114,29 @@ def feret_measurements(coords):
     bins = np.linspace(proj_largo.min(), proj_largo.max(), n_bins + 1)
     idx = np.digitize(proj_largo, bins)
     ancho_mm = 0.0
-    b_best = None
+    pos_largo_mm = 0.0
+
     for b in range(1, n_bins + 1):
         sel = idx == b
         if sel.sum() > 1:
             w = float(np.ptp(proj_ancho[sel]))
             if w > ancho_mm:
                 ancho_mm = w
-                b_best = b
+                pos_largo_mm = float(proj_largo[sel].mean())
 
-    if b_best is None:
-        A1_px, A2_px = pts[0], pts[0]
-    else:
-        sel = np.where(idx == b_best)[0]
-        lo = sel[proj_ancho[sel].argmin()]
-        hi = sel[proj_ancho[sel].argmax()]
-        A1_px, A2_px = pts[lo], pts[hi]
+    punto_ancla_mm = centro_mm + pos_largo_mm * eje_mayor
+    
+    A1_mm = punto_ancla_mm - (ancho_mm / 2.0) * eje_menor
+    A2_mm = punto_ancla_mm + (ancho_mm / 2.0) * eje_menor
+
+    A1_px = A1_mm / np.array([S_X, S_Y])
+    A2_px = A2_mm / np.array([S_X, S_Y])
 
     elong = float(np.sqrt(evals[0] / evals[1])) if evals[1] > 0 else 0.0
     flat = float(evals[0] / evals[1]) if evals[1] > 0 else 0.0
 
     return largo_mm, ancho_mm, elong, flat, L1_px, L2_px, A1_px, A2_px
+
 
 
 def extract_features(frame_rgb, mask):
