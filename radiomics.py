@@ -79,61 +79,188 @@ def zone_entropy(gray, mask):
 
 
 def feret_measurements(coords):
+  
     pts = coords[:, ::-1].astype(float)
+
     pts_mm = pts * np.array([S_X, S_Y])
 
     if len(pts_mm) < 3:
-        return 0.0, 0.0, 0.0, 0.0, pts[0], pts[0], pts[0], pts[0]
+        p = pts[0]
+        return 0.0, 0.0, 0.0, 0.0, p, p, p, p
 
-    try:
-        hull = ConvexHull(pts_mm)
-        hull_pts_mm = pts_mm[hull.vertices]
-        hull_pts_px = pts[hull.vertices]
-    except Exception:
-        return 0.0, 0.0, 0.0, 0.0, pts[0], pts[0], pts[0], pts[0]
+ 
+    centro_mm = pts_mm.mean(axis=0)
 
-
-    D = distance_matrix(hull_pts_mm, hull_pts_mm)
-    i, j = np.unravel_index(D.argmax(), D.shape)
-    largo_mm = float(D[i, j])
-    L1_px, L2_px = hull_pts_px[i], hull_pts_px[j]
-
-
-    centro_mm = pts_mm.mean(0)
     C = pts_mm - centro_mm
-    evals, evecs = np.linalg.eigh(np.cov(C.T))
-    
-    eje_mayor = evecs[:, np.argmax(evals)]
-    eje_menor = evecs[:, np.argmin(evals)] 
-    
+
+    cov = np.cov(C.T)
+
+    evals, evecs = np.linalg.eigh(cov)
+
    
+    eje_mayor = evecs[:, np.argmax(evals)]
+
+
+    eje_mayor = eje_mayor / np.linalg.norm(eje_mayor)
+
+    eje_menor = np.array([
+        -eje_mayor[1],
+         eje_mayor[0]
+    ])
+
+    eje_menor = eje_menor / np.linalg.norm(eje_menor)
+
+  
     proj_largo = C @ eje_mayor
     proj_ancho = C @ eje_menor
 
-    n_bins = 60
-    bins = np.linspace(proj_largo.min(), proj_largo.max(), n_bins + 1)
-    idx = np.digitize(proj_largo, bins)
-    ancho_mm = 0.0
-    pos_largo_mm = 0.0
+   
+    i_min = np.argmin(proj_largo)
+    i_max = np.argmax(proj_largo)
 
-    for b in range(1, n_bins + 1):
-        sel = idx == b
-        if sel.sum() > 1:
-            w = float(np.ptp(proj_ancho[sel]))
-            if w > ancho_mm:
-                ancho_mm = w
-                pos_largo_mm = float(proj_largo[sel].mean())
+    L1_mm = pts_mm[i_min]
+    L2_mm = pts_mm[i_max]
 
-    punto_ancla_mm = centro_mm + pos_largo_mm * eje_mayor
+    largo_mm = float(
+        proj_largo[i_max] - proj_largo[i_min]
+    )
+
+
+
+    n_bins = 100
+
+    min_long = proj_largo.min()
+    max_long = proj_largo.max()
+
+    if max_long <= min_long:
+        ancho_mm = 0.0
+        pos_largo_mm = 0.0
+
+        A1_mm = centro_mm
+        A2_mm = centro_mm
+
+    else:
+
+   
+        bins = np.linspace(
+            min_long,
+            max_long,
+            n_bins + 1
+        )
+
+        mejor_ancho = 0.0
+        mejor_pos = 0.0
+        mejor_min = 0.0
+        mejor_max = 0.0
+
+        for k in range(n_bins):
+
+      
+            low = bins[k]
+            high = bins[k + 1]
+
+            sel = (
+                (proj_largo >= low) &
+                (proj_largo < high)
+            )
+
+            if sel.sum() < 2:
+                continue
+
+         
+            ancho_min = proj_ancho[sel].min()
+            ancho_max = proj_ancho[sel].max()
+
+            ancho_actual = ancho_max - ancho_min
+
     
-    A1_mm = punto_ancla_mm - (ancho_mm / 2.0) * eje_menor
-    A2_mm = punto_ancla_mm + (ancho_mm / 2.0) * eje_menor
+            if ancho_actual > mejor_ancho:
+
+                mejor_ancho = float(ancho_actual)
+
+              
+                mejor_pos = float(
+                    np.mean(proj_largo[sel])
+                )
+
+                mejor_min = float(ancho_min)
+                mejor_max = float(ancho_max)
+
+        ancho_mm = mejor_ancho
+
+
+        punto_interseccion_mm = (
+            centro_mm +
+            mejor_pos * eje_mayor
+        )
+
+
+
+        A1_mm = (
+            centro_mm +
+            mejor_pos * eje_mayor +
+            mejor_min * eje_menor
+        )
+
+        A2_mm = (
+            centro_mm +
+            mejor_pos * eje_mayor +
+            mejor_max * eje_menor
+        )
+
+ 
+
+    L1_px = L1_mm / np.array([S_X, S_Y])
+    L2_px = L2_mm / np.array([S_X, S_Y])
 
     A1_px = A1_mm / np.array([S_X, S_Y])
     A2_px = A2_mm / np.array([S_X, S_Y])
 
-    elong = float(np.sqrt(evals[0] / evals[1])) if evals[1] > 0 else 0.0
-    flat = float(evals[0] / evals[1]) if evals[1] > 0 else 0.0
+
+
+    if evals[1] > 0:
+
+        elong = float(
+            np.sqrt(evals[0] / evals[1])
+        )
+
+        flat = float(
+            evals[0] / evals[1]
+        )
+
+    else:
+
+        elong = 0.0
+        flat = 0.0
+
+
+
+    vector_largo = L2_mm - L1_mm
+    vector_ancho = A2_mm - A1_mm
+
+    norma_largo = np.linalg.norm(vector_largo)
+    norma_ancho = np.linalg.norm(vector_ancho)
+
+    if norma_largo > 0 and norma_ancho > 0:
+
+        cos_angle = np.dot(
+            vector_largo,
+            vector_ancho
+        ) / (
+            norma_largo * norma_ancho
+        )
+
+        cos_angle = np.clip(cos_angle, -1.0, 1.0)
+
+        angle_deg = float(
+            np.degrees(np.arccos(cos_angle))
+        )
+
+    else:
+
+        angle_deg = np.nan
+
+
 
     return largo_mm, ancho_mm, elong, flat, L1_px, L2_px, A1_px, A2_px
 
