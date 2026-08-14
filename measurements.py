@@ -7,7 +7,6 @@ import cv2
 import streamlit as st
 import pandas as pd
 
-
 def analyze_candidates_debug(mask):
     mask_c1 = (mask == 1).astype(np.uint8)
     
@@ -25,7 +24,7 @@ def analyze_candidates_debug(mask):
         component = (labels == i).astype(np.uint8)
         area = stats[i, cv2.CC_STAT_AREA]
         
-        if area < 100:
+        if area < 50:
             continue
         
         contours, _ = cv2.findContours(
@@ -38,14 +37,10 @@ def analyze_candidates_debug(mask):
         contour = max(contours, key=cv2.contourArea)
         contour_area = cv2.contourArea(contour)
         
-        if contour_area < 100:
+        if contour_area < 50:
             continue
         
         x, y, bw, bh = cv2.boundingRect(contour)
-        
-        touches_border = (x <= 0 or y <= 0 or x + bw >= w - 1 or y + bh >= h - 1)
-        if touches_border:
-            continue
         
         perimeter = cv2.arcLength(contour, True)
         circularity = (4 * np.pi * contour_area / (perimeter ** 2)) if perimeter > 0 else 0
