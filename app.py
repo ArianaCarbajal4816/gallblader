@@ -302,12 +302,14 @@ with tab1:
                 opacity=opacity,
                 progress_callback=lambda p: progress.progress(min(p, 1.0))
             )
-            for frame in frames_data:
-                frame["mask"] = clean_class_1_mask(frame["mask"])
 
+            for frame in frames_data:
+                frame["mask_original"] = frame["mask"].copy()
+                frame["mask"] = clean_class_1_mask(frame["mask"])
+            
             st.session_state.frames_data = frames_data
             st.session_state.seg_video_path = str(seg_video_path)
-
+            
             status.info("Identificando frame de mayor visualización...")
             best = find_best_frame(frames_data)
             st.session_state.best_frame = best
@@ -319,7 +321,7 @@ with tab1:
                 st.stop()
             
             status.info("Analizando candidatos...")
-            show_candidates_analysis(best["frame_rgb"], best["mask"])
+            show_candidates_analysis(best["frame_rgb"], best["mask_original"])
             
             status.info("Extrayendo características radiómicas...")
 
