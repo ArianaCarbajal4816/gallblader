@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from PIL import Image
 from scipy.ndimage import label  
-import streamlit as st  # <-- Inyectado para control en la web
+import streamlit as st  
 
 from config import COLOR_LARGO, COLOR_ANCHO
 
@@ -21,7 +21,7 @@ def clean_class_1_mask(mask):
     if np.sum(mask_c1) == 0:
         return mask_clean
 
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
     mask_c1_separated = cv2.morphologyEx(mask_c1, cv2.MORPH_OPEN, kernel)
 
     contours, _ = cv2.findContours(
