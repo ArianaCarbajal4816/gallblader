@@ -4,34 +4,38 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from PIL import Image
 from scipy.ndimage import label  
+import streamlit as st  # <-- Inyectado para control en la web
 
 from config import COLOR_LARGO, COLOR_ANCHO
 
 
-from scipy.ndimage import label
-
-
 def clean_class_1_mask(mask):
-    mask_c1 = (mask == 1).astype(np.uint8)
+
+    mask_clean = mask.copy()
+    mask_c1 = (mask_clean == 1).astype(np.uint8)
+    
     if np.sum(mask_c1) == 0:
-        return mask
+        return mask_clean
 
     labeled_array, num_features = label(mask_c1)
 
     if num_features > 1:
         counts = np.bincount(labeled_array.ravel())
-        print(
-            f"[DEBUG] {num_features} mascaras encontradas. Tamaños: {[int(counts[i]) for i in range(1, num_features + 1)]}"
-        )
+        tamanos = [int(counts[i]) for i in range(1, num_features + 1)]
+        
+     
+        st.error(f": Detectadas {num_features} máscaras  de tamaños {tamanos} px.")
 
+        
         counts[0] = 0
         largest_idx = np.argmax(counts)
-        mask[(mask == 1) & (labeled_array != largest_idx)] = 0
+        
+      
+        mask_clean[(mask_clean == 1) & (labeled_array != largest_idx)] = 0
     else:
-        print(f"[DEBUG] 1 sola mascara encontrada. Tamaño: {int(np.sum(mask_c1))} px")
+        st.success(f"Limpieza  máscara detectada ({int(np.sum(mask_c1))} px).")
 
-    return mask
-
+    return mask_clean
 
 
 def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
@@ -40,15 +44,13 @@ def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
     fig = plt.figure(figsize=(w / dpi, h / dpi), dpi=dpi)
     ax = fig.add_axes([0, 0, 1, 1])
     ax.imshow(frame_rgb)
-
-
-    mask = clean_class_1_mask(mask)
+    mask_cleaned = clean_class_1_mask(mask)
 
     overlay = np.zeros_like(frame_rgb)
-    overlay[mask == 1] = [0, 114, 178]
-    overlay[mask == 2] = [213, 94, 0]
+    overlay[mask_cleaned == 1] = [0, 114, 178]
+    overlay[mask_cleaned == 2] = [213, 94, 0]
     alpha_layer = np.zeros((h, w), dtype=np.float32)
-    alpha_layer[mask >= 1] = 0.25
+    alpha_layer[mask_cleaned >= 1] = 0.25
     ax.imshow(overlay, alpha=alpha_layer)
 
     if vesicle_lines is not None:
@@ -80,6 +82,10 @@ def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
     buf.seek(0)
     img = np.array(Image.open(buf))
     return img
+
+
+def save_annotated_frame(annotated_array, path):
+    Image.fromarray(annotated_array).save(path)
 
 
 def save_annotated_frame(annotated_array, path):
