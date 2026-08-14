@@ -56,6 +56,7 @@ def clean_class_1_mask(mask):
 
         mask_clean[mask_clean == 1] = 0
         mask_clean[result == 1] = 1
+
         return mask_clean
 
     markers = markers.astype(np.int32) + 1
@@ -159,20 +160,50 @@ def clean_class_1_mask(mask):
     return mask_clean
 
 
-def filter_calculi_near_vesicle(calculi_info, vesicle_mask, max_distance_px=50):
-    if vesicle_mask is None:
-        return calculi_info
+def filter_class_2_by_vesicle(mask, max_distance_px=25):
+    result = mask.copy()
 
-    vesicle_binary = (vesicle_mask == 1).astype(np.uint8)
+    vesicle = (result == 1).astype(np.uint8)
+    calculi = (result == 2).astype(np.uint8)
 
-    if np.sum(vesicle_binary) == 0:
+    if np.sum(vesicle) == 0 or np.sum(calculi) == 0:
+        return result
+
+    distance = cv2.distanceTransform(1 - vesicle, cv2.DIST_L2, 5)
+
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(calculi, connectivity=8)
+
+    for i in range(1, num_labels):
+        component = (labels == i).astype(np.uint8)
+        ys, xs = np.where(component > 0)
+
+        if len(xs) == 0:
+            continue
+
+        cx = int(round(centroids[i][0]))
+        cy = int(round(centroids[i][1]))
+
+        if cx < 0 or cx >= mask.shape[1] or cy < 0 or cy >= mask.shape[0]:
+            result[component == 1] = 0
+            continue
+
+        component_distance = distance[ys, xs].min()
+
+        if component_distance > max_distance_px:
+            result[component == 2] = 0
+
+    return result
+
+
+def filter_calculi_info(calculi_info, vesicle_mask, max_distance_px=25):
+    if vesicle_mask is None or np.sum(vesicle_mask == 1) == 0:
         return []
 
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * max_distance_px + 1, 2 * max_distance_px + 1))
-    vesicle_region = cv2.dilate(vesicle_binary, kernel)
+    vesicle = (vesicle_mask == 1).astype(np.uint8)
+    distance = cv2.distanceTransform(1 - vesicle, cv2.DIST_L2, 5)
 
+    h, w = vesicle.shape
     filtered = []
-    h, w = vesicle_binary.shape
 
     for c in calculi_info:
         cx, cy = c["centroid"]
@@ -182,7 +213,7 @@ def filter_calculi_near_vesicle(calculi_info, vesicle_mask, max_distance_px=50):
         if x < 0 or x >= w or y < 0 or y >= h:
             continue
 
-        if vesicle_region[y, x] == 1:
+        if distance[y, x] <= max_distance_px:
             filtered.append(c)
 
     return filtered
@@ -191,13 +222,15 @@ def filter_calculi_near_vesicle(calculi_info, vesicle_mask, max_distance_px=50):
 def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
     h, w = frame_rgb.shape[:2]
     dpi = 100
+
     fig = plt.figure(figsize=(w / dpi, h / dpi), dpi=dpi)
     ax = fig.add_axes([0, 0, 1, 1])
     ax.imshow(frame_rgb)
 
     mask_cleaned = clean_class_1_mask(mask)
+    mask_cleaned = filter_class_2_by_vesicle(mask_cleaned, max_distance_px=25)
 
-    calculi_info = filter_calculi_near_vesicle(calculi_info, mask_cleaned, max_distance_px=50)
+    calculi_info = filter_calculi_info(calculi_info, mask_cleaned, max_distance_px=25)
 
     overlay = np.zeros_like(frame_rgb)
     overlay[mask_cleaned == 1] = [0, 114, 178]
@@ -205,6 +238,7 @@ def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
 
     alpha_layer = np.zeros((h, w), dtype=np.float32)
     alpha_layer[mask_cleaned >= 1] = 0.25
+
     ax.imshow(overlay, alpha=alpha_layer)
 
     if vesicle_lines is not None:
