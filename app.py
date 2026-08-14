@@ -17,7 +17,7 @@ from config import (
 from segmentation import segment_video, find_best_frame
 from radiomics import extract_features
 from classifier import predict_label
-from measurements import annotate_best_frame
+from measurements import annotate_best_frame, clean_class_1_mask
 from report import generate_report
 from model_downloader import ensure_multiclass, ensure_cascade
 
@@ -301,6 +301,8 @@ with tab1:
                 opacity=opacity,
                 progress_callback=lambda p: progress.progress(min(p, 1.0))
             )
+            for idx in frames_data:
+                frames_data[idx]["mask"] = clean_class_1_mask(frames_data[idx]["mask"])
 
             st.session_state.frames_data = frames_data
             st.session_state.seg_video_path = str(seg_video_path)
