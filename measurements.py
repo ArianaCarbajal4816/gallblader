@@ -1,17 +1,10 @@
 import io
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from PIL import Image
-from scipy.ndimage import label  
-import streamlit as st  
-
 from config import COLOR_LARGO, COLOR_ANCHO
-
-
 import cv2
-import numpy as np
-from scipy.ndimage import label
+import streamlit as st
 
 
 def clean_class_1_mask(mask):
@@ -21,9 +14,7 @@ def clean_class_1_mask(mask):
     if np.sum(mask_c1) == 0:
         return mask_clean
 
-    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
-        mask_c1, connectivity=8
-    )
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask_c1, connectivity=8)
 
     if num_labels > 1:
         areas = stats[1:, cv2.CC_STAT_AREA]
@@ -32,19 +23,13 @@ def clean_class_1_mask(mask):
     else:
         main_component = mask_c1.copy()
 
-    dist = cv2.distanceTransform(
-        main_component,
-        cv2.DIST_L2,
-        5
-    )
-
+    dist = cv2.distanceTransform(main_component, cv2.DIST_L2, 5)
     max_dist = dist.max()
 
     if max_dist <= 0:
         return mask_clean
 
     threshold = 0.35 * max_dist
-
     sure_fg = np.zeros_like(main_component)
     sure_fg[dist >= threshold] = 1
 
@@ -52,64 +37,33 @@ def clean_class_1_mask(mask):
 
     if num_markers <= 2:
         threshold = 0.20 * max_dist
-
         sure_fg = np.zeros_like(main_component)
         sure_fg[dist >= threshold] = 1
-
         num_markers, markers = cv2.connectedComponents(sure_fg)
 
     if num_markers <= 2:
         candidate_mask = main_component.copy()
-
-        contours, _ = cv2.findContours(
-            candidate_mask,
-            cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours(candidate_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         if len(contours) == 0:
             return mask_clean
 
-        best_contour = max(
-            contours,
-            key=cv2.contourArea
-        )
-
+        best_contour = max(contours, key=cv2.contourArea)
         result = np.zeros_like(mask_c1)
 
         if cv2.contourArea(best_contour) > 100:
-            cv2.drawContours(
-                result,
-                [best_contour],
-                -1,
-                1,
-                thickness=-1
-            )
+            cv2.drawContours(result, [best_contour], -1, 1, thickness=-1)
 
         mask_clean[mask_clean == 1] = 0
         mask_clean[result == 1] = 1
-
         return mask_clean
 
-    markers = markers.astype(np.int32)
-    markers = markers + 1
-
-    unknown = cv2.subtract(
-        main_component,
-        sure_fg.astype(np.uint8)
-    )
-
+    markers = markers.astype(np.int32) + 1
+    unknown = cv2.subtract(main_component, sure_fg.astype(np.uint8))
     markers[unknown == 1] = 0
 
-    watershed_img = cv2.cvtColor(
-        (main_component * 255).astype(np.uint8),
-        cv2.COLOR_GRAY2BGR
-    )
-
-    cv2.watershed(
-        watershed_img,
-        markers
-    )
+    watershed_img = cv2.cvtColor((main_component * 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+    cv2.watershed(watershed_img, markers)
 
     region_ids = np.unique(markers)
     candidates = []
@@ -118,45 +72,27 @@ def clean_class_1_mask(mask):
         if region_id <= 1:
             continue
 
-        region = (
-            (markers == region_id) &
-            (main_component == 1)
-        ).astype(np.uint8)
-
+        region = ((markers == region_id) & (main_component == 1)).astype(np.uint8)
         area = np.sum(region)
 
         if area < 100:
             continue
 
-        contours, _ = cv2.findContours(
-            region,
-            cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours(region, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         if len(contours) == 0:
             continue
 
-        contour = max(
-            contours,
-            key=cv2.contourArea
-        )
-
+        contour = max(contours, key=cv2.contourArea)
         contour_area = cv2.contourArea(contour)
 
         if contour_area < 100:
             continue
 
-        perimeter = cv2.arcLength(
-            contour,
-            True
-        )
+        perimeter = cv2.arcLength(contour, True)
 
         if perimeter > 0:
-            circularity = (
-                4 * np.pi * contour_area
-                / (perimeter ** 2)
-            )
+            circularity = 4 * np.pi * contour_area / (perimeter ** 2)
         else:
             circularity = 0
 
@@ -165,33 +101,18 @@ def clean_class_1_mask(mask):
         if len(contour) >= 5:
             try:
                 ellipse = cv2.fitEllipse(contour)
-
                 (cx, cy), (major_axis, minor_axis), angle = ellipse
 
                 if major_axis > 0 and minor_axis > 0:
-                    aspect_ratio = (
-                        min(major_axis, minor_axis)
-                        / max(major_axis, minor_axis)
-                    )
-
-                    ellipse_area = (
-                        np.pi *
-                        (major_axis / 2) *
-                        (minor_axis / 2)
-                    )
+                    aspect_ratio = min(major_axis, minor_axis) / max(major_axis, minor_axis)
+                    ellipse_area = np.pi * (major_axis / 2) * (minor_axis / 2)
 
                     if ellipse_area > 0:
-                        area_similarity = min(
-                            contour_area / ellipse_area,
-                            ellipse_area / contour_area
-                        )
+                        area_similarity = min(contour_area / ellipse_area, ellipse_area / contour_area)
                     else:
                         area_similarity = 0
 
-                    ellipse_score = (
-                        0.6 * area_similarity +
-                        0.4 * aspect_ratio
-                    )
+                    ellipse_score = 0.6 * area_similarity + 0.4 * aspect_ratio
 
             except cv2.error:
                 ellipse_score = 0
@@ -220,42 +141,51 @@ def clean_class_1_mask(mask):
         mask_clean[main_component == 1] = 1
         return mask_clean
 
-    max_area = max(
-        c["area"]
-        for c in candidates
-    )
+    max_area = max(c["area"] for c in candidates)
 
     for c in candidates:
         area_score = c["area"] / max_area
+        c["final_score"] = 0.55 * c["ellipse_score"] + 0.25 * area_score + 0.20 * min(c["circularity"], 1.0)
 
-        c["final_score"] = (
-            0.55 * c["ellipse_score"] +
-            0.25 * area_score +
-            0.20 * min(c["circularity"], 1.0)
-        )
-
-    best = max(
-        candidates,
-        key=lambda x: x["final_score"]
-    )
-
+    best = max(candidates, key=lambda x: x["final_score"])
     result = best["region"].copy()
 
-    kernel_small = cv2.getStructuringElement(
-        cv2.MORPH_ELLIPSE,
-        (5, 5)
-    )
-
-    result = cv2.morphologyEx(
-        result,
-        cv2.MORPH_CLOSE,
-        kernel_small
-    )
+    kernel_small = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    result = cv2.morphologyEx(result, cv2.MORPH_CLOSE, kernel_small)
 
     mask_clean[mask_clean == 1] = 0
     mask_clean[result == 1] = 1
 
     return mask_clean
+
+
+def filter_calculi_near_vesicle(calculi_info, vesicle_mask, max_distance_px=50):
+    if vesicle_mask is None:
+        return calculi_info
+
+    vesicle_binary = (vesicle_mask == 1).astype(np.uint8)
+
+    if np.sum(vesicle_binary) == 0:
+        return []
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * max_distance_px + 1, 2 * max_distance_px + 1))
+    vesicle_region = cv2.dilate(vesicle_binary, kernel)
+
+    filtered = []
+    h, w = vesicle_binary.shape
+
+    for c in calculi_info:
+        cx, cy = c["centroid"]
+        x = int(round(cx))
+        y = int(round(cy))
+
+        if x < 0 or x >= w or y < 0 or y >= h:
+            continue
+
+        if vesicle_region[y, x] == 1:
+            filtered.append(c)
+
+    return filtered
 
 
 def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
@@ -264,11 +194,15 @@ def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
     fig = plt.figure(figsize=(w / dpi, h / dpi), dpi=dpi)
     ax = fig.add_axes([0, 0, 1, 1])
     ax.imshow(frame_rgb)
+
     mask_cleaned = clean_class_1_mask(mask)
+
+    calculi_info = filter_calculi_near_vesicle(calculi_info, mask_cleaned, max_distance_px=50)
 
     overlay = np.zeros_like(frame_rgb)
     overlay[mask_cleaned == 1] = [0, 114, 178]
     overlay[mask_cleaned == 2] = [213, 94, 0]
+
     alpha_layer = np.zeros((h, w), dtype=np.float32)
     alpha_layer[mask_cleaned >= 1] = 0.25
     ax.imshow(overlay, alpha=alpha_layer)
@@ -276,18 +210,22 @@ def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
     if vesicle_lines is not None:
         L1, L2 = vesicle_lines["L1"], vesicle_lines["L2"]
         A1, A2 = vesicle_lines["A1"], vesicle_lines["A2"]
+
         ax.plot([L1[0], L2[0]], [L1[1], L2[1]], '-', color=COLOR_LARGO, lw=2.5,
                 label=f"Largo: {vesicle_lines['largo_mm']:.1f} mm")
+
         ax.plot([A1[0], A2[0]], [A1[1], A2[1]], '-', color=COLOR_ANCHO, lw=2.5,
                 label=f"Ancho: {vesicle_lines['ancho_mm']:.1f} mm")
 
     for c in calculi_info:
         cx, cy = c["centroid"]
+
         ax.plot(cx, cy, 'o', markersize=10, markerfacecolor='none',
                 markeredgecolor='yellow', markeredgewidth=2)
-        ax.annotate(f"C{c['id']}: {c['diam_mm']:.1f}mm",
-                   (cx, cy), textcoords="offset points", xytext=(8, -8),
-                   fontsize=9, color='yellow', weight='bold')
+
+        ax.annotate(f"C{c['id']}: {c['diam_mm']:.1f}mm", (cx, cy),
+                    textcoords="offset points", xytext=(8, -8),
+                    fontsize=9, color='yellow', weight='bold')
 
     if vesicle_lines is not None:
         ax.legend(loc='upper right', fontsize=9, framealpha=0.7)
@@ -299,13 +237,11 @@ def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=dpi, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
+
     buf.seek(0)
     img = np.array(Image.open(buf))
+
     return img
-
-
-def save_annotated_frame(annotated_array, path):
-    Image.fromarray(annotated_array).save(path)
 
 
 def save_annotated_frame(annotated_array, path):
