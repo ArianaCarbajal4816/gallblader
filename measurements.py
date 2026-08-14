@@ -20,17 +20,13 @@ def clean_class_1_mask(mask):
     )
 
     if num_labels > 1:
+
         candidates = []
 
         h, w = mask_c1.shape
-        image_cx = w / 2.0
-        image_cy = h / 2.0
-
-        max_distance = np.sqrt(
-            image_cx ** 2 + image_cy ** 2
-        )
 
         for i in range(1, num_labels):
+
             component = (labels == i).astype(np.uint8)
 
             area = stats[i, cv2.CC_STAT_AREA]
@@ -47,13 +43,35 @@ def clean_class_1_mask(mask):
             if not contours:
                 continue
 
-            contour = max(contours, key=cv2.contourArea)
+            contour = max(
+                contours,
+                key=cv2.contourArea
+            )
+
             contour_area = cv2.contourArea(contour)
 
             if contour_area < 100:
                 continue
 
-            perimeter = cv2.arcLength(contour, True)
+            x = stats[i, cv2.CC_STAT_LEFT]
+            y = stats[i, cv2.CC_STAT_TOP]
+            bw = stats[i, cv2.CC_STAT_WIDTH]
+            bh = stats[i, cv2.CC_STAT_HEIGHT]
+
+            touches_border = (
+                x <= 0 or
+                y <= 0 or
+                x + bw >= w - 1 or
+                y + bh >= h - 1
+            )
+
+            if touches_border:
+                continue
+
+            perimeter = cv2.arcLength(
+                contour,
+                True
+            )
 
             if perimeter > 0:
                 circularity = (
@@ -63,18 +81,55 @@ def clean_class_1_mask(mask):
             else:
                 circularity = 0
 
+            hull = cv2.convexHull(contour)
+            hull_area = cv2.contourArea(hull)
+
+            if hull_area > 0:
+                solidity = (
+                    contour_area / hull_area
+                )
+            else:
+                solidity = 0
+
+            bbox_area = bw * bh
+
+            if bbox_area > 0:
+                extent = (
+                    contour_area / bbox_area
+                )
+            else:
+                extent = 0
+
             ellipse_score = 0
+            aspect_ratio = 0
 
             if len(contour) >= 5:
+
                 try:
+
                     ellipse = cv2.fitEllipse(contour)
+
                     (_, _), (axis1, axis2), _ = ellipse
 
-                    major_axis = max(axis1, axis2)
-                    minor_axis = min(axis1, axis2)
+                    major_axis = max(
+                        axis1,
+                        axis2
+                    )
 
-                    if major_axis > 0 and minor_axis > 0:
-                        aspect_ratio = minor_axis / major_axis
+                    minor_axis = min(
+                        axis1,
+                        axis2
+                    )
+
+                    if (
+                        major_axis > 0 and
+                        minor_axis > 0
+                    ):
+
+                        aspect_ratio = (
+                            minor_axis /
+                            major_axis
+                        )
 
                         ellipse_area = (
                             np.pi *
@@ -83,68 +138,99 @@ def clean_class_1_mask(mask):
                         )
 
                         if ellipse_area > 0:
-                            area_similarity = min(
-                                contour_area / ellipse_area,
-                                ellipse_area / contour_area
-                            )
-                        else:
-                            area_similarity = 0
 
-                        ellipse_score = (
-                            0.6 * area_similarity +
-                            0.4 * aspect_ratio
-                        )
+                            area_similarity = min(
+                                contour_area /
+                                ellipse_area,
+                                ellipse_area /
+                                contour_area
+                            )
+
+                            ellipse_score = (
+                                0.6 *
+                                area_similarity +
+                                0.4 *
+                                aspect_ratio
+                            )
 
                 except cv2.error:
                     ellipse_score = 0
 
-            cx = centroids[i][0]
-            cy = centroids[i][1]
-
-            distance_center = np.sqrt(
-                (cx - image_cx) ** 2 +
-                (cy - image_cy) ** 2
-            )
-
-            if max_distance > 0:
-                center_score = 1.0 - (
-                    distance_center / max_distance
-                )
-            else:
-                center_score = 1.0
-
-            center_score = np.clip(
-                center_score,
-                0.0,
-                1.0
+            shape_ratio = (
+                min(bw, bh) /
+                max(bw, bh)
+                if max(bw, bh) > 0
+                else 0
             )
 
             candidates.append({
                 "index": i,
                 "area": contour_area,
-                "ellipse_score": ellipse_score,
-                "circularity": min(circularity, 1.0),
-                "center_score": center_score
+                "circularity": np.clip(
+                    circularity,
+                    0,
+                    1
+                ),
+                "solidity": np.clip(
+                    solidity,
+                    0,
+                    1
+                ),
+                "extent": np.clip(
+                    extent,
+                    0,
+                    1
+                ),
+                "ellipse_score": np.clip(
+                    ellipse_score,
+                    0,
+                    1
+                ),
+                "aspect_ratio": np.clip(
+                    aspect_ratio,
+                    0,
+                    1
+                ),
+                "shape_ratio": np.clip(
+                    shape_ratio,
+                    0,
+                    1
+                )
             })
 
         if candidates:
+
             max_area = max(
-                c["area"] for c in candidates
+                c["area"]
+                for c in candidates
             )
 
             for c in candidates:
-                area_score = c["area"] / max_area
+
+                area_score = (
+                    c["area"] /
+                    max_area
+                )
 
                 c["final_score"] = (
-                    0.45 * c["ellipse_score"] +
-                    0.30 * area_score +
-                    0.15 * c["circularity"] +
-                    0.10 * c["center_score"]
+                    0.35 *
+                    c["ellipse_score"] +
+                    0.20 *
+                    c["solidity"] +
+                    0.15 *
+                    c["circularity"] +
+                    0.10 *
+                    c["extent"] +
+                    0.10 *
+                    area_score +
+                    0.10 *
+                    c["shape_ratio"]
                 )
 
             best = max(
                 candidates,
-                key=lambda x: x["final_score"]
+                key=lambda c:
+                c["final_score"]
             )
 
             main_component = (
@@ -152,9 +238,23 @@ def clean_class_1_mask(mask):
             ).astype(np.uint8)
 
         else:
-            main_component = mask_c1.copy()
+
+            areas = stats[
+                1:,
+                cv2.CC_STAT_AREA
+            ]
+
+            largest_idx = (
+                1 +
+                np.argmax(areas)
+            )
+
+            main_component = (
+                labels == largest_idx
+            ).astype(np.uint8)
 
     else:
+
         main_component = mask_c1.copy()
 
     dist = cv2.distanceTransform(
@@ -170,25 +270,39 @@ def clean_class_1_mask(mask):
 
     threshold = 0.35 * max_dist
 
-    sure_fg = np.zeros_like(main_component)
-    sure_fg[dist >= threshold] = 1
+    sure_fg = np.zeros_like(
+        main_component
+    )
+
+    sure_fg[
+        dist >= threshold
+    ] = 1
 
     num_markers, markers = cv2.connectedComponents(
         sure_fg
     )
 
     if num_markers <= 2:
+
         threshold = 0.20 * max_dist
 
-        sure_fg = np.zeros_like(main_component)
-        sure_fg[dist >= threshold] = 1
+        sure_fg = np.zeros_like(
+            main_component
+        )
+
+        sure_fg[
+            dist >= threshold
+        ] = 1
 
         num_markers, markers = cv2.connectedComponents(
             sure_fg
         )
 
     if num_markers <= 2:
-        candidate_mask = main_component.copy()
+
+        candidate_mask = (
+            main_component.copy()
+        )
 
         contours, _ = cv2.findContours(
             candidate_mask,
@@ -204,9 +318,14 @@ def clean_class_1_mask(mask):
             key=cv2.contourArea
         )
 
-        result = np.zeros_like(mask_c1)
+        result = np.zeros_like(
+            mask_c1
+        )
 
-        if cv2.contourArea(best_contour) > 100:
+        if cv2.contourArea(
+            best_contour
+        ) > 100:
+
             cv2.drawContours(
                 result,
                 [best_contour],
@@ -215,22 +334,33 @@ def clean_class_1_mask(mask):
                 thickness=-1
             )
 
-        mask_clean[mask_clean == 1] = 0
-        mask_clean[result == 1] = 1
+        mask_clean[
+            mask_clean == 1
+        ] = 0
+
+        mask_clean[
+            result == 1
+        ] = 1
 
         return mask_clean
 
-    markers = markers.astype(np.int32) + 1
+    markers = (
+        markers.astype(np.int32) + 1
+    )
 
     unknown = cv2.subtract(
         main_component,
         sure_fg.astype(np.uint8)
     )
 
-    markers[unknown == 1] = 0
+    markers[
+        unknown == 1
+    ] = 0
 
     watershed_img = cv2.cvtColor(
-        (main_component * 255).astype(np.uint8),
+        (
+            main_component * 255
+        ).astype(np.uint8),
         cv2.COLOR_GRAY2BGR
     )
 
@@ -239,7 +369,10 @@ def clean_class_1_mask(mask):
         markers
     )
 
-    region_ids = np.unique(markers)
+    region_ids = np.unique(
+        markers
+    )
+
     candidates = []
 
     for region_id in region_ids:
@@ -271,7 +404,9 @@ def clean_class_1_mask(mask):
             key=cv2.contourArea
         )
 
-        contour_area = cv2.contourArea(contour)
+        contour_area = cv2.contourArea(
+            contour
+        )
 
         if contour_area < 100:
             continue
@@ -282,28 +417,87 @@ def clean_class_1_mask(mask):
         )
 
         if perimeter > 0:
+
             circularity = (
-                4 * np.pi * contour_area /
+                4 * np.pi *
+                contour_area /
                 (perimeter ** 2)
             )
+
         else:
             circularity = 0
 
+        hull = cv2.convexHull(
+            contour
+        )
+
+        hull_area = cv2.contourArea(
+            hull
+        )
+
+        if hull_area > 0:
+            solidity = (
+                contour_area /
+                hull_area
+            )
+        else:
+            solidity = 0
+
+        x, y, bw, bh = cv2.boundingRect(
+            contour
+        )
+
+        bbox_area = bw * bh
+
+        if bbox_area > 0:
+            extent = (
+                contour_area /
+                bbox_area
+            )
+        else:
+            extent = 0
+
+        touches_border = (
+            x <= 0 or
+            y <= 0 or
+            x + bw >= w - 1 or
+            y + bh >= h - 1
+        )
+
+        if touches_border:
+            continue
+
         ellipse_score = 0
+        aspect_ratio = 0
 
         if len(contour) >= 5:
+
             try:
-                ellipse = cv2.fitEllipse(contour)
+
+                ellipse = cv2.fitEllipse(
+                    contour
+                )
 
                 (_, _), (axis1, axis2), _ = ellipse
 
-                major_axis = max(axis1, axis2)
-                minor_axis = min(axis1, axis2)
+                major_axis = max(
+                    axis1,
+                    axis2
+                )
 
-                if major_axis > 0 and minor_axis > 0:
+                minor_axis = min(
+                    axis1,
+                    axis2
+                )
+
+                if (
+                    major_axis > 0 and
+                    minor_axis > 0
+                ):
 
                     aspect_ratio = (
-                        minor_axis / major_axis
+                        minor_axis /
+                        major_axis
                     )
 
                     ellipse_area = (
@@ -313,31 +507,49 @@ def clean_class_1_mask(mask):
                     )
 
                     if ellipse_area > 0:
-                        area_similarity = min(
-                            contour_area / ellipse_area,
-                            ellipse_area / contour_area
-                        )
-                    else:
-                        area_similarity = 0
 
-                    ellipse_score = (
-                        0.6 * area_similarity +
-                        0.4 * aspect_ratio
-                    )
+                        area_similarity = min(
+                            contour_area /
+                            ellipse_area,
+                            ellipse_area /
+                            contour_area
+                        )
+
+                        ellipse_score = (
+                            0.6 *
+                            area_similarity +
+                            0.4 *
+                            aspect_ratio
+                        )
 
             except cv2.error:
                 ellipse_score = 0
 
-        M = cv2.moments(contour)
+        shape_ratio = (
+            min(bw, bh) /
+            max(bw, bh)
+            if max(bw, bh) > 0
+            else 0
+        )
+
+        M = cv2.moments(
+            contour
+        )
 
         if M["m00"] != 0:
+
             cx_region = (
-                M["m10"] / M["m00"]
+                M["m10"] /
+                M["m00"]
             )
+
             cy_region = (
-                M["m01"] / M["m00"]
+                M["m01"] /
+                M["m00"]
             )
+
         else:
+
             cx_region = 0
             cy_region = 0
 
@@ -346,36 +558,73 @@ def clean_class_1_mask(mask):
             "region": region,
             "area": contour_area,
             "circularity": circularity,
+            "solidity": solidity,
+            "extent": extent,
             "ellipse_score": ellipse_score,
+            "aspect_ratio": aspect_ratio,
+            "shape_ratio": shape_ratio,
             "cx": cx_region,
             "cy": cy_region
         })
 
     if len(candidates) == 0:
-        mask_clean[mask_clean == 1] = 0
-        mask_clean[main_component == 1] = 1
+
+        mask_clean[
+            mask_clean == 1
+        ] = 0
+
+        mask_clean[
+            main_component == 1
+        ] = 1
+
         return mask_clean
 
     max_area = max(
-        c["area"] for c in candidates
+        c["area"]
+        for c in candidates
     )
 
     for c in candidates:
 
-        area_score = c["area"] / max_area
+        area_score = (
+            c["area"] /
+            max_area
+        )
 
         c["final_score"] = (
-            0.55 * c["ellipse_score"] +
-            0.25 * area_score +
-            0.20 * min(
+            0.35 *
+            c["ellipse_score"] +
+            0.20 *
+            np.clip(
+                c["solidity"],
+                0,
+                1
+            ) +
+            0.15 *
+            min(
                 c["circularity"],
                 1.0
+            ) +
+            0.10 *
+            np.clip(
+                c["extent"],
+                0,
+                1
+            ) +
+            0.10 *
+            area_score +
+            0.10 *
+            np.clip(
+                c["shape_ratio"],
+                0,
+                1
             )
         )
 
     best = max(
         candidates,
-        key=lambda x: x["final_score"]
+        key=lambda x:
+        x["final_score"]
     )
 
     result = best["region"].copy()
@@ -391,8 +640,13 @@ def clean_class_1_mask(mask):
         kernel_small
     )
 
-    mask_clean[mask_clean == 1] = 0
-    mask_clean[result == 1] = 1
+    mask_clean[
+        mask_clean == 1
+    ] = 0
+
+    mask_clean[
+        result == 1
+    ] = 1
 
     return mask_clean
 
@@ -457,7 +711,10 @@ def filter_class_2_by_vesicle(
             cy < 0 or
             cy >= mask.shape[0]
         ):
-            result[component == 1] = 0
+            result[
+                component == 1
+            ] = 0
+
             continue
 
         component_distance = distance[
@@ -466,7 +723,9 @@ def filter_class_2_by_vesicle(
         ].min()
 
         if component_distance > max_distance_px:
-            result[component == 2] = 0
+            result[
+                component == 2
+            ] = 0
 
     return result
 
@@ -478,7 +737,9 @@ def filter_calculi_info(
 ):
     if (
         vesicle_mask is None or
-        np.sum(vesicle_mask == 1) == 0
+        np.sum(
+            vesicle_mask == 1
+        ) == 0
     ):
         return []
 
@@ -493,6 +754,7 @@ def filter_calculi_info(
     )
 
     h, w = vesicle.shape
+
     filtered = []
 
     for c in calculi_info:
@@ -536,7 +798,9 @@ def annotate_best_frame(
 
     ax.imshow(frame_rgb)
 
-    mask_cleaned = clean_class_1_mask(mask)
+    mask_cleaned = clean_class_1_mask(
+        mask
+    )
 
     vesicle_mask = (
         mask_cleaned == 1
@@ -548,6 +812,7 @@ def annotate_best_frame(
         np.sum(vesicle_mask) > 0 and
         calculi_info
     ):
+
         distance = cv2.distanceTransform(
             1 - vesicle_mask,
             cv2.DIST_L2,
@@ -565,6 +830,7 @@ def annotate_best_frame(
                 0 <= x < w and
                 0 <= y < h
             ):
+
                 if distance[y, x] <= 25:
                     filtered_calculi.append(c)
 
@@ -580,7 +846,9 @@ def annotate_best_frame(
 
         num_labels, labels, stats, centroids = (
             cv2.connectedComponentsWithStats(
-                (mask_cleaned == 2).astype(np.uint8),
+                (
+                    mask_cleaned == 2
+                ).astype(np.uint8),
                 connectivity=8
             )
         )
@@ -694,14 +962,23 @@ def annotate_best_frame(
         )
 
     if vesicle_lines is not None:
+
         ax.legend(
             loc='upper right',
             fontsize=9,
             framealpha=0.7
         )
 
-    ax.set_xlim(0, w)
-    ax.set_ylim(h, 0)
+    ax.set_xlim(
+        0,
+        w
+    )
+
+    ax.set_ylim(
+        h,
+        0
+    )
+
     ax.axis('off')
 
     buf = io.BytesIO()
