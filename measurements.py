@@ -8,25 +8,30 @@ from scipy.ndimage import label
 from config import COLOR_LARGO, COLOR_ANCHO
 
 
-def clean_class_1_mask(mask):
-   
-    mask_c1 = (mask == 1).astype(np.uint8)
-    
-    if np.sum(mask_c1) == 0:
-        return mask 
-    labeled_array, num_features = label(mask_c1)
-    
-    if num_features > 1:
+from scipy.ndimage import label
 
+
+def clean_class_1_mask(mask):
+    mask_c1 = (mask == 1).astype(np.uint8)
+    if np.sum(mask_c1) == 0:
+        return mask
+
+    labeled_array, num_features = label(mask_c1)
+
+    if num_features > 1:
         counts = np.bincount(labeled_array.ravel())
-        counts[0] = 0 
-        
+        print(
+            f"[DEBUG] {num_features} mascaras encontradas. Tamaños: {[int(counts[i]) for i in range(1, num_features + 1)]}"
+        )
+
+        counts[0] = 0
         largest_idx = np.argmax(counts)
-        
-    
         mask[(mask == 1) & (labeled_array != largest_idx)] = 0
-        
+    else:
+        print(f"[DEBUG] 1 sola mascara encontrada. Tamaño: {int(np.sum(mask_c1))} px")
+
     return mask
+
 
 
 def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
