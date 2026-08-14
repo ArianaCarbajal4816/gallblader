@@ -301,8 +301,8 @@ with tab1:
                 opacity=opacity,
                 progress_callback=lambda p: progress.progress(min(p, 1.0))
             )
-            for idx in frames_data:
-                frames_data[idx]["mask"] = clean_class_1_mask(frames_data[idx]["mask"])
+            for frame in frames_data:
+                frame["mask"] = clean_class_1_mask(frame["mask"])
 
             st.session_state.frames_data = frames_data
             st.session_state.seg_video_path = str(seg_video_path)
