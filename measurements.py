@@ -21,54 +21,241 @@ def clean_class_1_mask(mask):
     if np.sum(mask_c1) == 0:
         return mask_clean
 
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (300, 300))
-    mask_c1_separated = cv2.morphologyEx(mask_c1, cv2.MORPH_OPEN, kernel)
-
-    contours, _ = cv2.findContours(
-        mask_c1_separated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
+        mask_c1, connectivity=8
     )
 
-    if len(contours) > 1:
-        menor_error_elipse = float("inf")
-        index_vesicula_real = -1
-
-        for i, cnt in enumerate(contours):
-            if len(cnt) < 5 or cv2.contourArea(cnt) < 100:
-                continue
-
-            ellipse = cv2.fitEllipse(cnt)
-
-            ellipse_mask = np.zeros_like(mask_c1)
-            cv2.ellipse(ellipse_mask, ellipse, 1, thickness=-1)
-
-            diferencia = cv2.bitwise_xor(
-                mask_c1_separated & (ellipse_mask == 0),
-                ellipse_mask & (mask_c1_separated == 0),
-            )
-            error_ajuste = np.sum(diferencia) / cv2.contourArea(cnt)
-
-            if error_ajuste < menor_error_elipse:
-                menor_error_elipse = error_ajuste
-                index_vesicula_real = i
-
-        if index_vesicula_real != -1:
-            mask_filtrada = np.zeros_like(mask_c1)
-            cv2.drawContours(
-                mask_filtrada, contours, index_vesicula_real, 1, thickness=-1
-            )
-
-            mask_clean[mask_clean == 1] = 0
-            mask_clean[mask_filtrada == 1] = 1
+    if num_labels > 1:
+        areas = stats[1:, cv2.CC_STAT_AREA]
+        largest_idx = 1 + np.argmax(areas)
+        main_component = (labels == largest_idx).astype(np.uint8)
     else:
-        labeled_array, num_features = label(mask_c1)
-        if num_features > 1:
-            counts = np.bincount(labeled_array.ravel())
-            counts[0] = 0
-            largest_idx = np.argmax(counts)
-            mask_clean[(mask_clean == 1) & (labeled_array != largest_idx)] = 0
+        main_component = mask_c1.copy()
+
+    dist = cv2.distanceTransform(
+        main_component,
+        cv2.DIST_L2,
+        5
+    )
+
+    max_dist = dist.max()
+
+    if max_dist <= 0:
+        return mask_clean
+
+    threshold = 0.35 * max_dist
+
+    sure_fg = np.zeros_like(main_component)
+    sure_fg[dist >= threshold] = 1
+
+    num_markers, markers = cv2.connectedComponents(sure_fg)
+
+    if num_markers <= 2:
+        threshold = 0.20 * max_dist
+
+        sure_fg = np.zeros_like(main_component)
+        sure_fg[dist >= threshold] = 1
+
+        num_markers, markers = cv2.connectedComponents(sure_fg)
+
+    if num_markers <= 2:
+        candidate_mask = main_component.copy()
+
+        contours, _ = cv2.findContours(
+            candidate_mask,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        if len(contours) == 0:
+            return mask_clean
+
+        best_contour = max(
+            contours,
+            key=cv2.contourArea
+        )
+
+        result = np.zeros_like(mask_c1)
+
+        if cv2.contourArea(best_contour) > 100:
+            cv2.drawContours(
+                result,
+                [best_contour],
+                -1,
+                1,
+                thickness=-1
+            )
+
+        mask_clean[mask_clean == 1] = 0
+        mask_clean[result == 1] = 1
+
+        return mask_clean
+
+    markers = markers.astype(np.int32)
+    markers = markers + 1
+
+    unknown = cv2.subtract(
+        main_component,
+        sure_fg.astype(np.uint8)
+    )
+
+    markers[unknown == 1] = 0
+
+    watershed_img = cv2.cvtColor(
+        (main_component * 255).astype(np.uint8),
+        cv2.COLOR_GRAY2BGR
+    )
+
+    cv2.watershed(
+        watershed_img,
+        markers
+    )
+
+    region_ids = np.unique(markers)
+    candidates = []
+
+    for region_id in region_ids:
+        if region_id <= 1:
+            continue
+
+        region = (
+            (markers == region_id) &
+            (main_component == 1)
+        ).astype(np.uint8)
+
+        area = np.sum(region)
+
+        if area < 100:
+            continue
+
+        contours, _ = cv2.findContours(
+            region,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        if len(contours) == 0:
+            continue
+
+        contour = max(
+            contours,
+            key=cv2.contourArea
+        )
+
+        contour_area = cv2.contourArea(contour)
+
+        if contour_area < 100:
+            continue
+
+        perimeter = cv2.arcLength(
+            contour,
+            True
+        )
+
+        if perimeter > 0:
+            circularity = (
+                4 * np.pi * contour_area
+                / (perimeter ** 2)
+            )
+        else:
+            circularity = 0
+
+        ellipse_score = 0
+
+        if len(contour) >= 5:
+            try:
+                ellipse = cv2.fitEllipse(contour)
+
+                (cx, cy), (major_axis, minor_axis), angle = ellipse
+
+                if major_axis > 0 and minor_axis > 0:
+                    aspect_ratio = (
+                        min(major_axis, minor_axis)
+                        / max(major_axis, minor_axis)
+                    )
+
+                    ellipse_area = (
+                        np.pi *
+                        (major_axis / 2) *
+                        (minor_axis / 2)
+                    )
+
+                    if ellipse_area > 0:
+                        area_similarity = min(
+                            contour_area / ellipse_area,
+                            ellipse_area / contour_area
+                        )
+                    else:
+                        area_similarity = 0
+
+                    ellipse_score = (
+                        0.6 * area_similarity +
+                        0.4 * aspect_ratio
+                    )
+
+            except cv2.error:
+                ellipse_score = 0
+
+        M = cv2.moments(contour)
+
+        if M["m00"] != 0:
+            cx_region = M["m10"] / M["m00"]
+            cy_region = M["m01"] / M["m00"]
+        else:
+            cx_region = 0
+            cy_region = 0
+
+        candidates.append({
+            "region_id": region_id,
+            "region": region,
+            "area": contour_area,
+            "circularity": circularity,
+            "ellipse_score": ellipse_score,
+            "cx": cx_region,
+            "cy": cy_region
+        })
+
+    if len(candidates) == 0:
+        mask_clean[mask_clean == 1] = 0
+        mask_clean[main_component == 1] = 1
+        return mask_clean
+
+    max_area = max(
+        c["area"]
+        for c in candidates
+    )
+
+    for c in candidates:
+        area_score = c["area"] / max_area
+
+        c["final_score"] = (
+            0.55 * c["ellipse_score"] +
+            0.25 * area_score +
+            0.20 * min(c["circularity"], 1.0)
+        )
+
+    best = max(
+        candidates,
+        key=lambda x: x["final_score"]
+    )
+
+    result = best["region"].copy()
+
+    kernel_small = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (5, 5)
+    )
+
+    result = cv2.morphologyEx(
+        result,
+        cv2.MORPH_CLOSE,
+        kernel_small
+    )
+
+    mask_clean[mask_clean == 1] = 0
+    mask_clean[result == 1] = 1
 
     return mask_clean
-
 
 
 def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
