@@ -228,16 +228,48 @@ def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
     ax.imshow(frame_rgb)
 
     mask_cleaned = clean_class_1_mask(mask)
-    mask_cleaned = filter_class_2_by_vesicle(mask_cleaned, max_distance_px=25)
 
-    calculi_info = filter_calculi_info(calculi_info, mask_cleaned, max_distance_px=25)
+    vesicle_mask = (mask_cleaned == 1).astype(np.uint8)
+
+    filtered_calculi = []
+
+    if np.sum(vesicle_mask) > 0 and calculi_info:
+        distance = cv2.distanceTransform(1 - vesicle_mask, cv2.DIST_L2, 5)
+
+        for c in calculi_info:
+            cx, cy = c["centroid"]
+            x = int(round(cx))
+            y = int(round(cy))
+
+            if 0 <= x < w and 0 <= y < h:
+                if distance[y, x] <= 25:
+                    filtered_calculi.append(c)
+
+    mask_visual = np.zeros_like(mask_cleaned)
+    mask_visual[mask_cleaned == 1] = 1
+
+    if filtered_calculi:
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
+            (mask_cleaned == 2).astype(np.uint8),
+            connectivity=8
+        )
+
+        for i in range(1, num_labels):
+            cx_component, cy_component = centroids[i]
+
+            for c in filtered_calculi:
+                cx, cy = c["centroid"]
+
+                if np.hypot(cx_component - cx, cy_component - cy) < 30:
+                    mask_visual[labels == i] = 2
+                    break
 
     overlay = np.zeros_like(frame_rgb)
-    overlay[mask_cleaned == 1] = [0, 114, 178]
-    overlay[mask_cleaned == 2] = [213, 94, 0]
+    overlay[mask_visual == 1] = [0, 114, 178]
+    overlay[mask_visual == 2] = [213, 94, 0]
 
     alpha_layer = np.zeros((h, w), dtype=np.float32)
-    alpha_layer[mask_cleaned >= 1] = 0.25
+    alpha_layer[mask_visual >= 1] = 0.25
 
     ax.imshow(overlay, alpha=alpha_layer)
 
@@ -245,21 +277,46 @@ def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
         L1, L2 = vesicle_lines["L1"], vesicle_lines["L2"]
         A1, A2 = vesicle_lines["A1"], vesicle_lines["A2"]
 
-        ax.plot([L1[0], L2[0]], [L1[1], L2[1]], '-', color=COLOR_LARGO, lw=2.5,
-                label=f"Largo: {vesicle_lines['largo_mm']:.1f} mm")
+        ax.plot(
+            [L1[0], L2[0]],
+            [L1[1], L2[1]],
+            '-',
+            color=COLOR_LARGO,
+            lw=2.5,
+            label=f"Largo: {vesicle_lines['largo_mm']:.1f} mm"
+        )
 
-        ax.plot([A1[0], A2[0]], [A1[1], A2[1]], '-', color=COLOR_ANCHO, lw=2.5,
-                label=f"Ancho: {vesicle_lines['ancho_mm']:.1f} mm")
+        ax.plot(
+            [A1[0], A2[0]],
+            [A1[1], A2[1]],
+            '-',
+            color=COLOR_ANCHO,
+            lw=2.5,
+            label=f"Ancho: {vesicle_lines['ancho_mm']:.1f} mm"
+        )
 
-    for c in calculi_info:
+    for c in filtered_calculi:
         cx, cy = c["centroid"]
 
-        ax.plot(cx, cy, 'o', markersize=10, markerfacecolor='none',
-                markeredgecolor='yellow', markeredgewidth=2)
+        ax.plot(
+            cx,
+            cy,
+            'o',
+            markersize=10,
+            markerfacecolor='none',
+            markeredgecolor='yellow',
+            markeredgewidth=2
+        )
 
-        ax.annotate(f"C{c['id']}: {c['diam_mm']:.1f}mm", (cx, cy),
-                    textcoords="offset points", xytext=(8, -8),
-                    fontsize=9, color='yellow', weight='bold')
+        ax.annotate(
+            f"C{c['id']}: {c['diam_mm']:.1f}mm",
+            (cx, cy),
+            textcoords="offset points",
+            xytext=(8, -8),
+            fontsize=9,
+            color='yellow',
+            weight='bold'
+        )
 
     if vesicle_lines is not None:
         ax.legend(loc='upper right', fontsize=9, framealpha=0.7)
@@ -273,9 +330,7 @@ def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
     plt.close(fig)
 
     buf.seek(0)
-    img = np.array(Image.open(buf))
-
-    return img
+    return np.array(Image.open(buf))
 
 
 def save_annotated_frame(annotated_array, path):
