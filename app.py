@@ -8,7 +8,7 @@ from PIL import Image
 from datetime import datetime
 from pathlib import Path
 import io
-from measurements import annotate_best_frame, clean_class_1_mask, show_candidates_analysis
+from measurements import clean_class_1_mask
 
 from config import (
     DEVICE, INPUT_SIZE, TEMP_DIR, OUTPUT_DIR,
@@ -313,27 +313,12 @@ with tab1:
             status.info("Identificando frame de mayor visualización...")
             best = find_best_frame(frames_data)
             st.session_state.best_frame = best
-            
+
             if best is None or best["vesicle_area_px"] == 0:
                 st.warning("No se detectó vesícula en ningún frame del video.")
                 progress.progress(1.0)
                 status.empty()
                 st.stop()
-            
-            status.info("Analizando candidatos...")
-            show_candidates_analysis(best["frame_rgb"], best["mask_original"])
-            
-            status.info("Extrayendo características radiómicas...")
-
-            '''status.info("Identificando frame de mayor visualización...")
-            best = find_best_frame(frames_data)
-            st.session_state.best_frame = best
-
-            if best is None or best["vesicle_area_px"] == 0:
-                st.warning("No se detectó vesícula en ningún frame del video.")
-                progress.progress(1.0)
-                status.empty()
-                st.stop()'''
 
             status.info("Extrayendo características radiómicas...")
             feat = extract_features(best["frame_rgb"], best["mask"])
