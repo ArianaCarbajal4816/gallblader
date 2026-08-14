@@ -7,152 +7,7 @@ import cv2
 import streamlit as st
 import pandas as pd
 
-def analyze_candidates_debug(mask):
-    mask_c1 = (mask == 1).astype(np.uint8)
-    
-    if np.sum(mask_c1) == 0:
-        return []
 
-    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
-        mask_c1, connectivity=8
-    )
-
-    h, w = mask_c1.shape
-    candidates_data = []
-    
-    for i in range(1, num_labels):
-        component = (labels == i).astype(np.uint8)
-        area = stats[i, cv2.CC_STAT_AREA]
-        
-        if area < 50:
-            continue
-        
-        contours, _ = cv2.findContours(
-            component, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-        
-        if not contours:
-            continue
-        
-        contour = max(contours, key=cv2.contourArea)
-        contour_area = cv2.contourArea(contour)
-        
-        if contour_area < 50:
-            continue
-        
-        x, y, bw, bh = cv2.boundingRect(contour)
-        
-        perimeter = cv2.arcLength(contour, True)
-        circularity = (4 * np.pi * contour_area / (perimeter ** 2)) if perimeter > 0 else 0
-        
-        hull = cv2.convexHull(contour)
-        hull_area = cv2.contourArea(hull)
-        solidity = (contour_area / hull_area) if hull_area > 0 else 0
-        
-        bbox_area = bw * bh
-        extent = (contour_area / bbox_area) if bbox_area > 0 else 0
-        
-        ellipse_score = 0
-        aspect_ratio = 0
-        if len(contour) >= 5:
-            try:
-                ellipse = cv2.fitEllipse(contour)
-                (_, _), (axis1, axis2), _ = ellipse
-                major = max(axis1, axis2)
-                minor = min(axis1, axis2)
-                
-                if major > 0 and minor > 0:
-                    aspect_ratio = minor / major
-                    ellipse_area = np.pi * (major / 2) * (minor / 2)
-                    if ellipse_area > 0:
-                        area_sim = min(contour_area / ellipse_area, ellipse_area / contour_area)
-                        ellipse_score = 0.6 * area_sim + 0.4 * aspect_ratio
-            except:
-                pass
-        
-        shape_ratio = (min(bw, bh) / max(bw, bh)) if max(bw, bh) > 0 else 0
-        compactness = contour_area / bbox_area if bbox_area > 0 else 0
-        perimeter_norm = perimeter / np.sqrt(contour_area) if contour_area > 0 else 0
-        
-        M = cv2.moments(contour)
-        cx = M["m10"] / M["m00"] if M["m00"] != 0 else 0
-        cy = M["m01"] / M["m00"] if M["m00"] != 0 else 0
-        
-        eccentricity = np.sqrt(1 - (aspect_ratio ** 2)) if aspect_ratio > 0 else 0
-        
-        candidates_data.append({
-            "ID": i,
-            "component": component,
-            "area": contour_area,
-            "perimeter": perimeter,
-            "circularity": np.clip(circularity, 0, 1),
-            "solidity": np.clip(solidity, 0, 1),
-            "extent": np.clip(extent, 0, 1),
-            "aspect_ratio": np.clip(aspect_ratio, 0, 1),
-            "shape_ratio": np.clip(shape_ratio, 0, 1),
-            "compactness": np.clip(compactness, 0, 1),
-            "ellipse_score": np.clip(ellipse_score, 0, 1),
-            "perimeter_norm": perimeter_norm,
-            "eccentricity": eccentricity,
-        })
-    
-    return candidates_data
-
-
-def show_candidates_analysis(frame_rgb, mask):
-    candidates = analyze_candidates_debug(mask)
-    
-    if not candidates:
-        st.warning("No se encontraron candidatos")
-        return
-    
-    st.subheader(f"Análisis de {len(candidates)} candidatos")
-    
-    df_display = pd.DataFrame([
-        {
-            "ID": c["ID"],
-            "Área": f"{c['area']:.0f}",
-            "Circularity": f"{c['circularity']:.3f}",
-            "Solidity": f"{c['solidity']:.3f}",
-            "Extent": f"{c['extent']:.3f}",
-            "Aspect Ratio": f"{c['aspect_ratio']:.3f}",
-            "Shape Ratio": f"{c['shape_ratio']:.3f}",
-            "Ellipse Score": f"{c['ellipse_score']:.3f}",
-            "Compactness": f"{c['compactness']:.3f}",
-            "Eccentricity": f"{c['eccentricity']:.3f}",
-            "Perimeter/√Area": f"{c['perimeter_norm']:.3f}"
-        }
-        for c in candidates
-    ])
-    
-    st.dataframe(df_display, use_container_width=True)
-    
-    st.subheader("Visualización de cada candidato")
-    
-    cols = st.columns(len(candidates))
-    
-    for idx, (col, c) in enumerate(zip(cols, candidates)):
-        with col:
-            fig, axes = plt.subplots(1, 2, figsize=(6, 4))
-            
-            axes[0].imshow(c["component"], cmap='gray')
-            axes[0].set_title(f"Candidato {c['ID']}", fontweight='bold')
-            axes[0].axis('off')
-            
-            overlay = frame_rgb.copy()
-            overlay[c["component"] == 1] = [0, 255, 0]
-            axes[1].imshow(overlay)
-            axes[1].set_title(f"Area: {c['area']:.0f}px")
-            axes[1].axis('off')
-            
-            st.pyplot(fig, use_container_width=True)
-            
-            st.write("Solidity: {:.3f} (vesícula > 0.8)".format(c['solidity']))
-            st.write("Circularity: {:.3f} (redondo > 0.7)".format(c['circularity']))
-            st.write("Aspect Ratio: {:.3f} (cercano a 1.0)".format(c['aspect_ratio']))
-            st.write("Eccentricity: {:.3f} (bajo < 0.4)".format(c['eccentricity']))
-            st.write("Ellipse Score: {:.3f}".format(c['ellipse_score']))
-            st.write("Compactness: {:.3f}".format(c['compactness']))
 
 
 def clean_class_1_mask(mask):
@@ -361,18 +216,33 @@ def clean_class_1_mask(mask):
                 )
 
                 c["final_score"] = (
-                    0.35 *
-                    c["ellipse_score"] +
-                    0.20 *
-                    c["solidity"] +
                     0.15 *
-                    c["circularity"] +
+                    c["ellipse_score"] +
+                    0.45 *
+                    np.clip(
+                        c["solidity"],
+                        0,
+                        1
+                    ) +
                     0.10 *
-                    c["extent"] +
-                    0.10 *
+                    min(
+                        c["circularity"],
+                        1.0
+                    ) +
+                    0.05 *
+                    np.clip(
+                        c["extent"],
+                        0,
+                        1
+                    ) +
+                    0.15 *
                     area_score +
                     0.10 *
-                    c["shape_ratio"]
+                    np.clip(
+                        c["shape_ratio"],
+                        0,
+                        1
+                    )
                 )
 
             best = max(
