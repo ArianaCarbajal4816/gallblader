@@ -3,8 +3,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from PIL import Image
+from scipy.ndimage import label  
 
 from config import COLOR_LARGO, COLOR_ANCHO
+
+
+def clean_class_1_mask(mask):
+   
+    mask_c1 = (mask == 1).astype(np.uint8)
+    
+    if np.sum(mask_c1) == 0:
+        return mask 
+    labeled_array, num_features = label(mask_c1)
+    
+    if num_features > 1:
+
+        counts = np.bincount(labeled_array.ravel())
+        counts[0] = 0 
+        
+        largest_idx = np.argmax(counts)
+        
+    
+        mask[(mask == 1) & (labeled_array != largest_idx)] = 0
+        
+    return mask
 
 
 def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
@@ -13,6 +35,9 @@ def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
     fig = plt.figure(figsize=(w / dpi, h / dpi), dpi=dpi)
     ax = fig.add_axes([0, 0, 1, 1])
     ax.imshow(frame_rgb)
+
+
+    mask = clean_class_1_mask(mask)
 
     overlay = np.zeros_like(frame_rgb)
     overlay[mask == 1] = [0, 114, 178]
