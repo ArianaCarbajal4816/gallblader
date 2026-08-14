@@ -9,33 +9,66 @@ import streamlit as st  # <-- Inyectado para control en la web
 from config import COLOR_LARGO, COLOR_ANCHO
 
 
-def clean_class_1_mask(mask):
+import cv2
+import numpy as np
+from scipy.ndimage import label
 
+
+def clean_class_1_mask(mask):
     mask_clean = mask.copy()
     mask_c1 = (mask_clean == 1).astype(np.uint8)
-    
+
     if np.sum(mask_c1) == 0:
         return mask_clean
 
-    labeled_array, num_features = label(mask_c1)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    mask_c1_separated = cv2.morphologyEx(mask_c1, cv2.MORPH_OPEN, kernel)
 
-    if num_features > 1:
-        counts = np.bincount(labeled_array.ravel())
-        tamanos = [int(counts[i]) for i in range(1, num_features + 1)]
-        
-     
-        st.error(f": Detectadas {num_features} máscaras  de tamaños {tamanos} px.")
+    contours, _ = cv2.findContours(
+        mask_c1_separated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
 
-        
-        counts[0] = 0
-        largest_idx = np.argmax(counts)
-        
-      
-        mask_clean[(mask_clean == 1) & (labeled_array != largest_idx)] = 0
+    if len(contours) > 1:
+        menor_error_elipse = float("inf")
+        index_vesicula_real = -1
+
+        for i, cnt in enumerate(contours):
+            if len(cnt) < 5 or cv2.contourArea(cnt) < 100:
+                continue
+
+            ellipse = cv2.fitEllipse(cnt)
+
+            ellipse_mask = np.zeros_like(mask_c1)
+            cv2.ellipse(ellipse_mask, ellipse, 1, thickness=-1)
+
+            diferencia = cv2.bitwise_xor(
+                mask_c1_separated & (ellipse_mask == 0),
+                ellipse_mask & (mask_c1_separated == 0),
+            )
+            error_ajuste = np.sum(diferencia) / cv2.contourArea(cnt)
+
+            if error_ajuste < menor_error_elipse:
+                menor_error_elipse = error_ajuste
+                index_vesicula_real = i
+
+        if index_vesicula_real != -1:
+            mask_filtrada = np.zeros_like(mask_c1)
+            cv2.drawContours(
+                mask_filtrada, contours, index_vesicula_real, 1, thickness=-1
+            )
+
+            mask_clean[mask_clean == 1] = 0
+            mask_clean[mask_filtrada == 1] = 1
     else:
-        st.success(f"Limpieza  máscara detectada ({int(np.sum(mask_c1))} px).")
+        labeled_array, num_features = label(mask_c1)
+        if num_features > 1:
+            counts = np.bincount(labeled_array.ravel())
+            counts[0] = 0
+            largest_idx = np.argmax(counts)
+            mask_clean[(mask_clean == 1) & (labeled_array != largest_idx)] = 0
 
     return mask_clean
+
 
 
 def annotate_best_frame(frame_rgb, mask, vesicle_lines, calculi_info):
