@@ -21,7 +21,7 @@ def clean_class_1_mask(mask):
     if np.sum(mask_c1) == 0:
         return mask_clean
 
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (30, 30))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (100, 100))
     mask_c1_separated = cv2.morphologyEx(mask_c1, cv2.MORPH_OPEN, kernel)
 
     contours, _ = cv2.findContours(
