@@ -163,6 +163,7 @@ def feret_measurements(coords):
 
     return largo_mm, ancho_mm, elong, flat, L1_px, L2_px, A1_px, A2_px
 
+
 def split_overlapping_calculi(calc_mask, max_diam_mm=22.0, min_area=MIN_CLASS):
     calc_mask = calc_mask.astype(np.uint8)
 
@@ -171,8 +172,6 @@ def split_overlapping_calculi(calc_mask, max_diam_mm=22.0, min_area=MIN_CLASS):
 
     lab, n = ndimage.label(calc_mask)
     result = np.zeros_like(calc_mask, dtype=np.uint8)
-    
-    print(f"Split: procesando {n} componentes iniciales")
 
     for i in range(1, n + 1):
         component = (lab == i).astype(np.uint8)
@@ -196,66 +195,47 @@ def split_overlapping_calculi(calc_mask, max_diam_mm=22.0, min_area=MIN_CLASS):
         except Exception:
             diameter_mm = 0.0
 
-        print(f"  Comp {i}: diameter={diameter_mm:.2f}mm, area={area}px")
-        
         if diameter_mm <= max_diam_mm:
             result[component == 1] = 1
             continue
 
-        print(f"  -> Comp {i} necesita split (diameter > {max_diam_mm})")
+        print(f"  -> Comp {i} necesita split (diameter={diameter_mm:.2f}mm > {max_diam_mm}mm)")
 
-        dist = cv2.distanceTransform(component, cv2.DIST_L2, 5)
-        max_dist = float(dist.max())
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        eroded = cv2.erode(component, kernel, iterations=2)
 
-        if max_dist <= 0:
+        num_eroded, labels_eroded = cv2.connectedComponents(eroded)
+        print(f"     Erosión encontró {num_eroded} componentes")
+
+        if num_eroded <= 2:
             result[component == 1] = 1
             continue
 
-        eroded = component.copy()
-        separated = []
-        
-        for erosion_level in range(1, max_dist):
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-            eroded = cv2.erode(eroded, kernel, iterations=1)
-            
-            num_components, labels_eroded = cv2.connectedComponents(eroded)
-            
-            if num_components > 2:
-                print(f"  -> Encontrados {num_components} componentes en erosión nivel {erosion_level}")
-                separated = eroded
-                break
-
-        if separated is None or np.sum(separated) == 0:
-            result[component == 1] = 1
-            continue
-
-        dilated = separated.copy()
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        
-        for dilate_level in range(1, max_dist):
+        dilated = eroded.copy()
+        for _ in range(2):
             dilated = cv2.dilate(dilated, kernel, iterations=1)
-            overlap = cv2.bitwise_and(dilated, component)
-            
-            if np.sum(overlap) >= np.sum(component) * 0.95:
-                break
 
-        final_regions = []
-        num_final, labels_final = cv2.connectedComponents(dilated)
-        
-        for region_id in range(1, num_final):
-            region = ((labels_final == region_id) & (component == 1)).astype(np.uint8)
+        num_dilated, labels_dilated = cv2.connectedComponents(dilated)
+        print(f"     Dilatación resultó en {num_dilated} componentes")
+
+        separated_regions = []
+
+        for region_id in range(1, num_dilated):
+            region = ((labels_dilated == region_id) & (component == 1)).astype(np.uint8)
             region_area = int(region.sum())
 
             if region_area < min_area:
                 continue
 
-            final_regions.append(region)
+            separated_regions.append(region)
 
-        if len(final_regions) < 2:
+        if len(separated_regions) < 2:
             result[component == 1] = 1
+            print(f"     No se logró separar en 2 regiones, manteniendo original")
             continue
 
-        for region in final_regions:
+        print(f"     Split exitoso: {len(separated_regions)} regiones")
+        for region in separated_regions:
             result[region == 1] = 1
 
     return result.astype(bool)
@@ -270,7 +250,8 @@ def extract_features(frame_rgb, mask):
         "vesicle_lines": None,
         "calculi_info": [],
         "vesicle_mask": None,
-        "calculi_mask": None
+        "calculi_mask": None,
+        "debug": {}
     }
 
     if reales:
@@ -326,12 +307,13 @@ def extract_features(frame_rgb, mask):
     calc_vals = [v for v, _ in reales[1:]] if len(reales) >= 2 else []
     calc = np.isin(mask, calc_vals) if calc_vals else np.zeros(mask.shape, bool)
 
-    print(f"Antes de split: {ndimage.label(calc)[1]} componentes")
+    n_antes = ndimage.label(calc)[1]
+    result["debug"]["antes_split"] = n_antes
 
     calc = split_overlapping_calculi(calc, max_diam_mm=22.0, min_area=MIN_CLASS)
 
     lab_c, n_c = ndimage.label(calc)
-    print(f"Después de split: {n_c} componentes")
+    result["debug"]["despues_split"] = n_c
 
     components = []
 
@@ -344,7 +326,6 @@ def extract_features(frame_rgb, mask):
             area = int(component.sum())
 
             if area < MIN_CLASS:
-                print(f"Componente {k}: área={area} < MIN_CLASS, descartada")
                 continue
 
             ys, xs = np.nonzero(component)
@@ -363,11 +344,9 @@ def extract_features(frame_rgb, mask):
             else:
                 distance = np.inf
 
-            print(f"Componente {k}: área={area}, distancia={distance:.2f}")
-
             components.append((component, cx, cy))
 
-    print(f"Total componentes antes de calcular diámetro: {len(components)}")
+    result["debug"]["componentes_detectados"] = len(components)
 
     if components:
         diams = []
@@ -383,16 +362,12 @@ def extract_features(frame_rgb, mask):
                 try:
                     hp = pts_mm[ConvexHull(pts_mm).vertices]
                     d = float(distance_matrix(hp, hp).max())
-                except Exception as e:
-                    print(f"Error en ConvexHull componente {ci}: {e}")
+                except Exception:
                     d = 0.0
             else:
                 d = 0.0
 
-            print(f"Componente {ci}: diámetro={d:.2f} mm, área={c.sum()} px")
-
             if d <= 0:
-                print(f"Componente {ci} descartada: diámetro={d}")
                 continue
 
             diams.append(d)
@@ -405,8 +380,8 @@ def extract_features(frame_rgb, mask):
                 "centroid": (cx, cy)
             })
 
-        print(f"Total cálculos válidos: {len(valid_components)}")
-        print(f"Diámetros: {diams}")
+        result["debug"]["calculos_validos"] = len(valid_components)
+        result["debug"]["diametros"] = diams
 
         if valid_components:
             big_idx = int(np.argmax(diams))
