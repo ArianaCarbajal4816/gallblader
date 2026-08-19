@@ -162,7 +162,151 @@ def feret_measurements(coords):
         angle_deg = np.nan
 
     return largo_mm, ancho_mm, elong, flat, L1_px, L2_px, A1_px, A2_px
+def split_overlapping_calculi(calc_mask, max_diam_mm=22.0, min_area=MIN_CLASS):
+  
+    calc_mask = calc_mask.astype(np.uint8)
 
+    if np.sum(calc_mask) == 0:
+        return calc_mask.astype(bool)
+
+
+    lab, n = ndimage.label(calc_mask)
+
+    result = np.zeros_like(calc_mask, dtype=np.uint8)
+
+    for i in range(1, n + 1):
+
+        component = (lab == i).astype(np.uint8)
+
+        area = int(component.sum())
+
+        if area < min_area:
+            continue
+
+        ys, xs = np.nonzero(component)
+
+        if len(xs) < 3:
+            result[component == 1] = 1
+            continue
+
+        pts = np.column_stack([xs, ys]).astype(float)
+        pts_mm = pts * np.array([S_X, S_Y])
+
+        try:
+            hp = pts_mm[ConvexHull(pts_mm).vertices]
+            diameter_mm = float(distance_matrix(hp, hp).max())
+        except Exception:
+            diameter_mm = 0.0
+
+  
+        if diameter_mm <= max_diam_mm:
+            result[component == 1] = 1
+            continue
+
+  
+
+        dist = cv2.distanceTransform(
+            component,
+            cv2.DIST_L2,
+            5
+        )
+
+        max_dist = float(dist.max())
+
+        if max_dist <= 0:
+            result[component == 1] = 1
+            continue
+
+ 
+        thresholds = [
+            0.65,
+            0.55,
+            0.45,
+            0.35
+        ]
+
+        markers = None
+        best_num_markers = 0
+
+        for ratio in thresholds:
+
+            sure_fg = (
+                dist >= ratio * max_dist
+            ).astype(np.uint8)
+
+            marker_lab, num_markers = cv2.connectedComponents(
+                sure_fg
+            )
+
+            if num_markers > 2:
+
+                markers = marker_lab
+                best_num_markers = num_markers
+
+         
+                break
+
+
+        if markers is None or best_num_markers <= 2:
+
+            result[component == 1] = 1
+            continue
+
+   
+
+        markers = markers.astype(np.int32)
+
+        unknown = cv2.subtract(
+            component,
+            (markers > 0).astype(np.uint8)
+        )
+
+        markers[unknown == 1] = 0
+
+        watershed_img = cv2.cvtColor(
+            (component * 255).astype(np.uint8),
+            cv2.COLOR_GRAY2BGR
+        )
+
+        cv2.watershed(
+            watershed_img,
+            markers
+        )
+
+      
+
+        separated_regions = []
+
+        for region_id in np.unique(markers):
+
+            if region_id <= 1:
+                continue
+
+            region = (
+                (markers == region_id) &
+                (component == 1)
+            ).astype(np.uint8)
+
+            region_area = int(region.sum())
+
+            if region_area < min_area:
+                continue
+
+            separated_regions.append(region)
+
+       
+
+        if len(separated_regions) < 2:
+
+           
+            result[component == 1] = 1
+            continue
+
+
+        for region in separated_regions:
+            result[region == 1] = 1
+
+    return result.astype(bool)
 
 def extract_features(frame_rgb, mask):
     gray = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2GRAY)
@@ -225,13 +369,24 @@ def extract_features(frame_rgb, mask):
 
         for k in ['ves_area_mm2', 'ves_major_mm', 'ves_minor_mm', 'ves_aspect_ratio', 'ves_elongation', 'ves_sphericity', 'ves_flatness', 'ves_mean', 'ves_entropy', 'ves_std', 'ves_contrast', 'ves_homogeneity', 'ves_zone_entropy']:
             result["features"][k] = np.nan
-
     calc_vals = [v for v, _ in reales[1:]] if len(reales) >= 2 else []
-    calc = np.isin(mask, calc_vals) if calc_vals else np.zeros(mask.shape, bool)
 
+    calc = (
+        np.isin(mask, calc_vals)
+        if calc_vals
+        else np.zeros(mask.shape, bool)
+    )
+    
+    calc = split_overlapping_calculi(
+        calc,
+        max_diam_mm=22.0,
+        min_area=MIN_CLASS
+    )
+    
     lab_c, n_c = ndimage.label(calc)
-
+    
     components = []
+    
 
     if n_c > 0 and np.any(ves_big):
         vesicle_uint8 = ves_big.astype(np.uint8)
