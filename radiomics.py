@@ -212,7 +212,7 @@ def split_overlapping_calculi(calc_mask, max_diam_mm=22.0, min_area=MIN_CLASS):
 
         for ratio in thresholds:
             sure_fg = (dist >= ratio * max_dist).astype(np.uint8)
-            marker_lab, num_markers = cv2.connectedComponents(sure_fg)
+            num_markers, marker_lab = cv2.connectedComponents(sure_fg)
 
             if num_markers > 2:
                 markers = marker_lab
