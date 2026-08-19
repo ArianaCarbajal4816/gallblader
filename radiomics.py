@@ -163,7 +163,6 @@ def feret_measurements(coords):
 
     return largo_mm, ancho_mm, elong, flat, L1_px, L2_px, A1_px, A2_px
 
-
 def split_overlapping_calculi(calc_mask, max_diam_mm=22.0, min_area=MIN_CLASS):
     calc_mask = calc_mask.astype(np.uint8)
 
@@ -172,6 +171,8 @@ def split_overlapping_calculi(calc_mask, max_diam_mm=22.0, min_area=MIN_CLASS):
 
     lab, n = ndimage.label(calc_mask)
     result = np.zeros_like(calc_mask, dtype=np.uint8)
+    
+    print(f"Split: procesando {n} componentes iniciales")
 
     for i in range(1, n + 1):
         component = (lab == i).astype(np.uint8)
@@ -195,9 +196,13 @@ def split_overlapping_calculi(calc_mask, max_diam_mm=22.0, min_area=MIN_CLASS):
         except Exception:
             diameter_mm = 0.0
 
+        print(f"  Comp {i}: diameter={diameter_mm:.2f}mm, area={area}px")
+        
         if diameter_mm <= max_diam_mm:
             result[component == 1] = 1
             continue
+
+        print(f"  -> Comp {i} necesita split (diameter > {max_diam_mm})")
 
         dist = cv2.distanceTransform(component, cv2.DIST_L2, 5)
         max_dist = float(dist.max())
