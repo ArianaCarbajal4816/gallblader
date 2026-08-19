@@ -211,49 +211,51 @@ def split_overlapping_calculi(calc_mask, max_diam_mm=22.0, min_area=MIN_CLASS):
             result[component == 1] = 1
             continue
 
-        thresholds = [0.65, 0.55, 0.45, 0.35]
-        markers = None
-        best_num_markers = 0
-
-        for ratio in thresholds:
-            sure_fg = (dist >= ratio * max_dist).astype(np.uint8)
-            num_markers, marker_lab = cv2.connectedComponents(sure_fg)
-
-            if num_markers > 2:
-                markers = marker_lab
-                best_num_markers = num_markers
+        eroded = component.copy()
+        separated = []
+        
+        for erosion_level in range(1, max_dist):
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            eroded = cv2.erode(eroded, kernel, iterations=1)
+            
+            num_components, labels_eroded = cv2.connectedComponents(eroded)
+            
+            if num_components > 2:
+                print(f"  -> Encontrados {num_components} componentes en erosión nivel {erosion_level}")
+                separated = eroded
                 break
 
-        if markers is None or best_num_markers <= 2:
+        if separated is None or np.sum(separated) == 0:
             result[component == 1] = 1
             continue
 
-        markers = markers.astype(np.int32)
-        unknown = cv2.subtract(component, (markers > 0).astype(np.uint8))
-        markers[unknown == 1] = 0
+        dilated = separated.copy()
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        
+        for dilate_level in range(1, max_dist):
+            dilated = cv2.dilate(dilated, kernel, iterations=1)
+            overlap = cv2.bitwise_and(dilated, component)
+            
+            if np.sum(overlap) >= np.sum(component) * 0.95:
+                break
 
-        watershed_img = cv2.cvtColor((component * 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
-        cv2.watershed(watershed_img, markers)
-
-        separated_regions = []
-
-        for region_id in np.unique(markers):
-            if region_id <= 1:
-                continue
-
-            region = ((markers == region_id) & (component == 1)).astype(np.uint8)
+        final_regions = []
+        num_final, labels_final = cv2.connectedComponents(dilated)
+        
+        for region_id in range(1, num_final):
+            region = ((labels_final == region_id) & (component == 1)).astype(np.uint8)
             region_area = int(region.sum())
 
             if region_area < min_area:
                 continue
 
-            separated_regions.append(region)
+            final_regions.append(region)
 
-        if len(separated_regions) < 2:
+        if len(final_regions) < 2:
             result[component == 1] = 1
             continue
 
-        for region in separated_regions:
+        for region in final_regions:
             result[region == 1] = 1
 
     return result.astype(bool)
