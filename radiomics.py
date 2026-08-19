@@ -164,83 +164,6 @@ def feret_measurements(coords):
     return largo_mm, ancho_mm, elong, flat, L1_px, L2_px, A1_px, A2_px
 
 
-def split_overlapping_calculi(calc_mask, max_diam_mm=22.0, min_area=MIN_CLASS):
-    calc_mask = calc_mask.astype(np.uint8)
-
-    if np.sum(calc_mask) == 0:
-        return calc_mask.astype(bool)
-
-    lab, n = ndimage.label(calc_mask)
-    result = np.zeros_like(calc_mask, dtype=np.uint8)
-
-    for i in range(1, n + 1):
-        component = (lab == i).astype(np.uint8)
-        area = int(component.sum())
-
-        if area < min_area:
-            continue
-
-        ys, xs = np.nonzero(component)
-
-        if len(xs) < 3:
-            result[component == 1] = 1
-            continue
-
-        pts = np.column_stack([xs, ys]).astype(float)
-        pts_mm = pts * np.array([S_X, S_Y])
-
-        try:
-            hp = pts_mm[ConvexHull(pts_mm).vertices]
-            diameter_mm = float(distance_matrix(hp, hp).max())
-        except Exception:
-            diameter_mm = 0.0
-
-        if diameter_mm <= max_diam_mm:
-            result[component == 1] = 1
-            continue
-
-        print(f"  -> Comp {i} necesita split (diameter={diameter_mm:.2f}mm > {max_diam_mm}mm)")
-
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        eroded = cv2.erode(component, kernel, iterations=2)
-
-        num_eroded, labels_eroded = cv2.connectedComponents(eroded)
-        print(f"     Erosión encontró {num_eroded} componentes")
-
-        if num_eroded <= 2:
-            result[component == 1] = 1
-            continue
-
-        dilated = eroded.copy()
-        for _ in range(2):
-            dilated = cv2.dilate(dilated, kernel, iterations=1)
-
-        num_dilated, labels_dilated = cv2.connectedComponents(dilated)
-        print(f"     Dilatación resultó en {num_dilated} componentes")
-
-        separated_regions = []
-
-        for region_id in range(1, num_dilated):
-            region = ((labels_dilated == region_id) & (component == 1)).astype(np.uint8)
-            region_area = int(region.sum())
-
-            if region_area < min_area:
-                continue
-
-            separated_regions.append(region)
-
-        if len(separated_regions) < 2:
-            result[component == 1] = 1
-            print(f"     No se logró separar en 2 regiones, manteniendo original")
-            continue
-
-        print(f"     Split exitoso: {len(separated_regions)} regiones")
-        for region in separated_regions:
-            result[region == 1] = 1
-
-    return result.astype(bool)
-
-
 def extract_features(frame_rgb, mask):
     gray = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2GRAY)
     reales = detect_classes(mask)
@@ -250,8 +173,7 @@ def extract_features(frame_rgb, mask):
         "vesicle_lines": None,
         "calculi_info": [],
         "vesicle_mask": None,
-        "calculi_mask": None,
-        "debug": {}
+        "calculi_mask": None
     }
 
     if reales:
@@ -307,13 +229,7 @@ def extract_features(frame_rgb, mask):
     calc_vals = [v for v, _ in reales[1:]] if len(reales) >= 2 else []
     calc = np.isin(mask, calc_vals) if calc_vals else np.zeros(mask.shape, bool)
 
-    n_antes = ndimage.label(calc)[1]
-    result["debug"]["antes_split"] = n_antes
-
-    calc = split_overlapping_calculi(calc, max_diam_mm=22.0, min_area=MIN_CLASS)
-
     lab_c, n_c = ndimage.label(calc)
-    result["debug"]["despues_split"] = n_c
 
     components = []
 
@@ -344,9 +260,8 @@ def extract_features(frame_rgb, mask):
             else:
                 distance = np.inf
 
-            components.append((component, cx, cy))
-
-    result["debug"]["componentes_detectados"] = len(components)
+            if distance <= 25:
+                components.append((component, cx, cy))
 
     if components:
         diams = []
@@ -379,9 +294,6 @@ def extract_features(frame_rgb, mask):
                 "area_px": int(c.sum()),
                 "centroid": (cx, cy)
             })
-
-        result["debug"]["calculos_validos"] = len(valid_components)
-        result["debug"]["diametros"] = diams
 
         if valid_components:
             big_idx = int(np.argmax(diams))
