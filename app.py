@@ -192,8 +192,7 @@ with st.sidebar:
         )
         st.session_state.clf_mode = "full" if "segmentación" in clf_choice else "vesicle"
 
-    st.markdown("#### Visualización")
-    opacity = st.slider("Opacidad de la máscara", 0.0, 1.0, 0.5, 0.05)
+  
 
     st.markdown("---")
     st.markdown("#### Leyenda")
