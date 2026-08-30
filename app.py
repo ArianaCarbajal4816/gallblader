@@ -197,13 +197,22 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("#### Leyenda")
     st.markdown(
-        "<div style='font-size:0.85rem;'>"
-        "<span style='display:inline-block; width:14px; height:14px; background:#000; border:1px solid #999; vertical-align:middle;'></span> Fondo<br>"
-        "<span style='display:inline-block; width:14px; height:14px; background:rgb(0,114,178); vertical-align:middle;'></span> Vesícula<br>"
-        "<span style='display:inline-block; width:14px; height:14px; background:rgb(213,94,0); vertical-align:middle;'></span> Cálculos"
-        "</div>",
+        """
+        <div style='font-size: 0.85rem; line-height: 1.6;'>
+            <p style='margin: 4px 0;'>
+                <span style='display:inline-block; width:14px; height:14px; background:#000; border:1px solid #999; vertical-align:middle; margin-right:8px;'></span>Fondo
+            </p>
+            <p style='margin: 4px 0;'>
+                <span style='display:inline-block; width:14px; height:14px; background:rgb(0,114,178); vertical-align:middle; margin-right:8px;'></span>Vesícula
+            </p>
+            <p style='margin: 4px 0;'>
+                <span style='display:inline-block; width:14px; height:14px; background:rgb(213,94,0); vertical-align:middle; margin-right:8px;'></span>Cálculos
+            </p>
+        </div>
+        """,
         unsafe_allow_html=True
     )
+
 
 
 tab1, tab2, tab3 = st.tabs(["Análisis", "Resultados", "Reporte"])
