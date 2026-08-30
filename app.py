@@ -225,8 +225,7 @@ with tab1:
         st.markdown(
             f"<div class='info-card'><b>Configuración activa</b><br>"
             f"Segmentación: {seg_choice}<br>"
-            f"Clasificación: {clf_label}<br>"
-            f"Opacidad de máscara: {int(opacity*100)}%</div>",
+            f"Clasificación: {clf_label}<br>",
             unsafe_allow_html=True
         )
 
