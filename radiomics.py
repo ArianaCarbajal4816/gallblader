@@ -69,7 +69,27 @@ def zone_entropy(gray, mask):
     return float(-np.sum(p * np.log2(p)))
 
 
-def feret_measurements(coords):
+def clip_point_to_mask(centro_px, punto_px, mask, n_samples=300):
+   
+    cx, cy = centro_px
+    px, py = punto_px
+
+    xs = np.linspace(cx, px, n_samples)
+    ys = np.linspace(cy, py, n_samples)
+
+    last_inside = np.array([cx, cy], dtype=float)
+
+    for x, y in zip(xs, ys):
+        xi, yi = int(round(x)), int(round(y))
+        if 0 <= yi < mask.shape[0] and 0 <= xi < mask.shape[1] and mask[yi, xi]:
+            last_inside = np.array([x, y], dtype=float)
+        else:
+            break
+
+    return last_inside
+
+
+def feret_measurements(coords, mask):
     pts = coords[:, ::-1].astype(float)
     pts_mm = pts * np.array([S_X, S_Y])
 
@@ -89,12 +109,12 @@ def feret_measurements(coords):
     proj_largo = C @ eje_mayor
     proj_ancho = C @ eje_menor
 
-    i_min = np.argmin(proj_largo)
-    i_max = np.argmax(proj_largo)
+    min_largo = proj_largo.min()
+    max_largo = proj_largo.max()
 
-    L1_mm = pts_mm[i_min]
-    L2_mm = pts_mm[i_max]
-    largo_mm = float(proj_largo[i_max] - proj_largo[i_min])
+    L1_mm = centro_mm + min_largo * eje_mayor
+    L2_mm = centro_mm + max_largo * eje_mayor
+    largo_mm = float(max_largo - min_largo)
 
     n_bins = 100
     min_long = proj_largo.min()
@@ -102,7 +122,6 @@ def feret_measurements(coords):
 
     if max_long <= min_long:
         ancho_mm = 0.0
-        pos_largo_mm = 0.0
         A1_mm = centro_mm
         A2_mm = centro_mm
     else:
@@ -132,15 +151,8 @@ def feret_measurements(coords):
 
         ancho_mm = mejor_ancho
 
-        punto_interseccion_mm = centro_mm + mejor_pos * eje_mayor
-
         A1_mm = centro_mm + mejor_pos * eje_mayor + mejor_min * eje_menor
         A2_mm = centro_mm + mejor_pos * eje_mayor + mejor_max * eje_menor
-
-    L1_px = L1_mm / np.array([S_X, S_Y])
-    L2_px = L2_mm / np.array([S_X, S_Y])
-    A1_px = A1_mm / np.array([S_X, S_Y])
-    A2_px = A2_mm / np.array([S_X, S_Y])
 
     if evals[1] > 0:
         elong = float(np.sqrt(evals[0] / evals[1]))
@@ -149,17 +161,18 @@ def feret_measurements(coords):
         elong = 0.0
         flat = 0.0
 
-    vector_largo = L2_mm - L1_mm
-    vector_ancho = A2_mm - A1_mm
-    norma_largo = np.linalg.norm(vector_largo)
-    norma_ancho = np.linalg.norm(vector_ancho)
+    # --- conversion a pixeles + clipping contra la mascara (solo para dibujo) ---
+    centro_px = centro_mm / np.array([S_X, S_Y])
 
-    if norma_largo > 0 and norma_ancho > 0:
-        cos_angle = np.dot(vector_largo, vector_ancho) / (norma_largo * norma_ancho)
-        cos_angle = np.clip(cos_angle, -1.0, 1.0)
-        angle_deg = float(np.degrees(np.arccos(cos_angle)))
-    else:
-        angle_deg = np.nan
+    L1_px_raw = L1_mm / np.array([S_X, S_Y])
+    L2_px_raw = L2_mm / np.array([S_X, S_Y])
+    A1_px_raw = A1_mm / np.array([S_X, S_Y])
+    A2_px_raw = A2_mm / np.array([S_X, S_Y])
+
+    L1_px = clip_point_to_mask(centro_px, L1_px_raw, mask)
+    L2_px = clip_point_to_mask(centro_px, L2_px_raw, mask)
+    A1_px = clip_point_to_mask(centro_px, A1_px_raw, mask)
+    A2_px = clip_point_to_mask(centro_px, A2_px_raw, mask)
 
     return largo_mm, ancho_mm, elong, flat, L1_px, L2_px, A1_px, A2_px
 
@@ -185,7 +198,7 @@ def extract_features(frame_rgb, mask):
             rv = max(regionprops(lab), key=lambda r: r.area)
             ves_big = lab == rv.label
 
-            largo, ancho, elong, flat, L1, L2, A1, A2 = feret_measurements(rv.coords)
+            largo, ancho, elong, flat, L1, L2, A1, A2 = feret_measurements(rv.coords, ves_big)
             mean, std, ent = first_order(gray, ves_big)
             contr, homog = glcm_features(gray, ves_big)
             zone_ent = zone_entropy(gray, ves_big)
