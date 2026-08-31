@@ -2,7 +2,7 @@ import io
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
-from config import COLOR_LARGO, COLOR_ANCHO
+from config import COLOR_LARGO, COLOR_ANCHO, S_X, S_Y
 import cv2
 import streamlit as st
 import pandas as pd
@@ -803,6 +803,26 @@ def annotate_best_frame(
     calculi_info
 ):
     h, w = frame_rgb.shape[:2]
+
+    # --- corregir el aspecto fisico: los pixeles del frame/mascara no son
+    # cuadrados (S_X != S_Y). Se remuestrea a una grilla isotropica
+    # (pixel = S_X mm en ambas direcciones) ANTES de dibujar, para que dos
+    # ejes fisicamente perpendiculares (largo/ancho) tambien se vean
+    # perpendiculares en la imagen. Esto solo afecta el render, no las
+    # mediciones en mm que ya vienen calculadas en radiomics.py.
+    scale_y = (S_Y / S_X) if S_X > 0 else 1.0
+    new_h = max(1, int(round(h * scale_y)))
+    new_w = w
+
+    if new_h != h:
+        frame_rgb = cv2.resize(frame_rgb, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+        mask = cv2.resize(mask, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+
+    h, w = frame_rgb.shape[:2]
+
+    def _scale_point(p):
+        return np.array([p[0], p[1] * scale_y], dtype=float)
+
     dpi = 100
 
     fig = plt.figure(
@@ -839,7 +859,7 @@ def annotate_best_frame(
 
         for c in calculi_info:
 
-            cx, cy = c["centroid"]
+            cx, cy = _scale_point(c["centroid"])
 
             x = int(round(cx))
             y = int(round(cy))
@@ -850,7 +870,7 @@ def annotate_best_frame(
             ):
 
                 if distance[y, x] <= 25:
-                    filtered_calculi.append(c)
+                    filtered_calculi.append({**c, "centroid": (cx, cy)})
 
     mask_visual = np.zeros_like(
         mask_cleaned
@@ -920,15 +940,10 @@ def annotate_best_frame(
 
     if vesicle_lines is not None:
 
-        L1, L2 = (
-            vesicle_lines["L1"],
-            vesicle_lines["L2"]
-        )
-
-        A1, A2 = (
-            vesicle_lines["A1"],
-            vesicle_lines["A2"]
-        )
+        L1 = _scale_point(vesicle_lines["L1"])
+        L2 = _scale_point(vesicle_lines["L2"])
+        A1 = _scale_point(vesicle_lines["A1"])
+        A2 = _scale_point(vesicle_lines["A2"])
 
         ax.plot(
             [L1[0], L2[0]],
