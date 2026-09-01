@@ -86,8 +86,8 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
     styles = build_styles()
     doc = SimpleDocTemplate(
         output_path, pagesize=A4,
-        leftMargin=1.8 * cm, rightMargin=1.8 * cm,
-        topMargin=1.5 * cm, bottomMargin=1.5 * cm
+        leftMargin=2.54 * cm, rightMargin=2.54 * cm,
+        topMargin=2.54 * cm, bottomMargin=2.54 * cm
     )
 
     story = []
