@@ -130,6 +130,22 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
 
     story.append(Spacer(1, 0.3 * cm))
 
+    story.append(Paragraph("Frame de Mayor Visualización", styles["h2"]))
+    img_flowable = array_to_flowable(frame_annotated, max_width=11 * cm)
+    
+    img_wrapper = Table([[img_flowable]], colWidths=[17.4 * cm])
+    img_wrapper.setStyle(TableStyle([
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(img_wrapper)
+
+    story.append(Spacer(1, 0.3 * cm))
+
     story.append(Paragraph("Características Morfométricas y de Textura", styles["h2"]))
     
     combined_metrics = [
@@ -145,21 +161,7 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
     table_metrics = dense_table(combined_metrics, col_widths=[4.5 * cm, 4.2 * cm, 4.5 * cm, 4.2 * cm])
     story.append(table_metrics)
 
-    story.append(Spacer(1, 0.3 * cm))
-
-    story.append(Paragraph("Frame de Mayor Visualización", styles["h2"]))
-    img_flowable = array_to_flowable(frame_annotated, max_width=11 * cm)
-    
-    img_wrapper = Table([[img_flowable]], colWidths=[17.4 * cm])
-    img_wrapper.setStyle(TableStyle([
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-    ]))
-    story.append(img_wrapper)
+   
 
     story.append(Spacer(1, 0.3 * cm))
 
