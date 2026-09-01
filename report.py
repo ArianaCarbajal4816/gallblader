@@ -30,9 +30,9 @@ def build_styles():
         "small": ParagraphStyle("Small", parent=base["Normal"], fontSize=6.5,
                                 textColor=colors.HexColor("#777777"),
                                 alignment=TA_CENTER, leading=8),
-        "diag_header": ParagraphStyle("DiagHeader", parent=base["Normal"], fontSize=9.5,
+        "diag_header": ParagraphStyle("DiagHeader", parent=base["Normal"], fontSize=10,
                                       textColor=colors.HexColor("#1f3864"),
-                                      alignment=TA_CENTER, spaceAfter=4, leading=11),
+                                      alignment=TA_CENTER, spaceAfter=4, leading=12),
     }
     return styles
 
@@ -109,7 +109,10 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
     table_meta = dense_table(meta_rows, col_widths=[3.4 * cm, 4.4 * cm])
 
     if classification is not None:
-        diag_p = Paragraph(f"<b>Diagnóstico:</b> {classification['label']}", styles["diag_header"])
+        raw_label = classification.get('label', '')
+        clean_label = raw_label.replace("Vesicula", "Vesícula").replace("vesicula", "vesícula")
+        
+        diag_p = Paragraph(f"<b>Diagnóstico:</b> {clean_label}", styles["diag_header"])
         
         prob_rows = [["Etiqueta", "Probabilidad"]]
         if classification.get("prob_normal") is not None:
