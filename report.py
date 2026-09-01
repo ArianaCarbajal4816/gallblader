@@ -15,36 +15,35 @@ PERU_TZ = timezone(timedelta(hours=-5))
 def build_styles():
     base = getSampleStyleSheet()
     styles = {
-        "title": ParagraphStyle("Title", parent=base["Title"], fontSize=15,
+        "title": ParagraphStyle("Title", parent=base["Title"], fontSize=14,
                                 textColor=colors.HexColor("#1f3864"),
-                                alignment=TA_CENTER, spaceAfter=2, leading=17),
-        "subtitle": ParagraphStyle("Subtitle", parent=base["Normal"], fontSize=8.5,
+                                alignment=TA_CENTER, spaceAfter=2, leading=16),
+        "subtitle": ParagraphStyle("Subtitle", parent=base["Normal"], fontSize=8,
                                    textColor=colors.HexColor("#666666"),
-                                   alignment=TA_CENTER, spaceAfter=8, leading=11),
-        "h2": ParagraphStyle("H2", parent=base["Heading2"], fontSize=10.5,
-                             textColor=colors.HexColor("#2d5a96"), spaceBefore=4, spaceAfter=3, leading=13),
-        "body": ParagraphStyle("Body", parent=base["Normal"], fontSize=8.5,
-                               textColor=colors.HexColor("#222222"), leading=11),
+                                   alignment=TA_CENTER, spaceAfter=6, leading=10),
+        "h2": ParagraphStyle("H2", parent=base["Heading2"], fontSize=10,
+                             textColor=colors.HexColor("#2d5a96"), spaceBefore=3, spaceAfter=2, leading=12),
+        "body": ParagraphStyle("Body", parent=base["Normal"], fontSize=8,
+                               textColor=colors.HexColor("#222222"), leading=10),
+        "table_text": ParagraphStyle("TableText", parent=base["Normal"], fontSize=7.5,
+                                     textColor=colors.HexColor("#222222"), leading=9),
         "small": ParagraphStyle("Small", parent=base["Normal"], fontSize=6.5,
                                 textColor=colors.HexColor("#777777"),
-                                alignment=TA_CENTER, leading=8.5),
-        "diag_positive": ParagraphStyle("DiagPos", parent=base["Normal"], fontSize=11,
-                                        textColor=colors.HexColor("#b30000"),
-                                        alignment=TA_CENTER, spaceAfter=3, leading=13),
-        "diag_negative": ParagraphStyle("DiagNeg", parent=base["Normal"], fontSize=11,
-                                        textColor=colors.HexColor("#006600"),
-                                        alignment=TA_CENTER, spaceAfter=3, leading=13),
+                                alignment=TA_CENTER, leading=8),
+        "diag_header": ParagraphStyle("DiagHeader", parent=base["Normal"], fontSize=9.5,
+                                      textColor=colors.HexColor("#1f3864"),
+                                      alignment=TA_CENTER, spaceAfter=4, leading=11),
     }
     return styles
 
-def array_to_flowable(arr, max_width=11 * cm):
+def array_to_flowable(arr, max_width=9.5 * cm, max_height=5.2 * cm):
     img = Image.fromarray(arr.astype(np.uint8))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
     w, h = img.size
-    ratio = max_width / w
-    return RLImage(buf, width=max_width, height=h * ratio)
+    ratio = min(max_width / w, max_height / h)
+    return RLImage(buf, width=w * ratio, height=h * ratio)
 
 def dense_table(rows, col_widths, align_center=False):
     t = Table(rows, colWidths=col_widths)
@@ -52,14 +51,14 @@ def dense_table(rows, col_widths, align_center=False):
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e9eef7")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1f3864")),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("FONTSIZE", (0, 0), (-1, -1), 7.5),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f7f9fc")]),
         ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#cccccc")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 2.5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 1.8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1.8),
     ]
     if align_center:
         style_cmds.append(("ALIGN", (0, 0), (-1, -1), "CENTER"))
@@ -86,8 +85,8 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
     styles = build_styles()
     doc = SimpleDocTemplate(
         output_path, pagesize=A4,
-        leftMargin=2.54 * cm, rightMargin=2.54 * cm,
-        topMargin=2.54 * cm, bottomMargin=2.54 * cm
+        leftMargin=1.5 * cm, rightMargin=1.5 * cm,
+        topMargin=1.2 * cm, bottomMargin=1.2 * cm
     )
 
     story = []
@@ -96,31 +95,37 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
     story.append(Paragraph(SOFTWARE_NAME, styles["subtitle"]))
 
     timestamp = datetime.now(PERU_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    seg_model_p = Paragraph(segmentation_model_name, styles["table_text"])
+    
     meta_rows = [
         ["Parámetro", "Valor"],
         ["Fecha y hora", f"{timestamp} (Perú)"],
-        ["Mod. Segmentación", segmentation_model_name],
+        ["Mod. Segmentación", seg_model_p],
     ]
     if classification:
-        meta_rows.append(["Mod. Clasificación", classifier_label(classification.get("mode"))])
+        class_model_p = Paragraph(classifier_label(classification.get("mode")), styles["table_text"])
+        meta_rows.append(["Mod. Clasificación", class_model_p])
     
-    table_meta = dense_table(meta_rows, col_widths=[4.0 * cm, 4.0 * cm])
+    table_meta = dense_table(meta_rows, col_widths=[3.4 * cm, 4.4 * cm])
 
     if classification is not None:
-        diag_style = styles["diag_positive"] if classification["prediction"] == 1 else styles["diag_negative"]
-        diag_p = Paragraph(f"<b>Diagnóstico:</b> {classification['label']}", diag_style)
+        diag_p = Paragraph(f"<b>Diagnóstico:</b> {classification['label']}", styles["diag_header"])
         
         prob_rows = [["Etiqueta", "Probabilidad"]]
         if classification.get("prob_normal") is not None:
             prob_rows.append(["Vesícula normal", fmt(classification["prob_normal"] * 100, 1, " %")])
             prob_rows.append(["Litiasis vesicular", fmt(classification["prob_litiasis"] * 100, 1, " %")])
-        table_prob = dense_table(prob_rows, col_widths=[4.5 * cm, 4.0 * cm])
+            
+        table_prob = dense_table(prob_rows, col_widths=[4.2 * cm, 3.6 * cm])
+        right_side = [diag_p, Spacer(1, 0.1 * cm), table_prob]
         
-        header_table = Table([[table_meta, [diag_p, table_prob]]], colWidths=[8.5 * cm, 8.9 * cm])
+        header_table = Table([[table_meta, right_side]], colWidths=[8.0 * cm, 8.2 * cm])
         header_table.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("LEFTPADDING", (0, 0), (0, 0), 0),
+            ("RIGHTPADDING", (0, 0), (0, 0), 0.3 * cm),
+            ("LEFTPADDING", (1, 0), (1, 0), 0.3 * cm),
+            ("RIGHTPADDING", (1, 0), (1, 0), 0),
             ("TOPPADDING", (0, 0), (-1, -1), 0),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
         ]))
@@ -128,12 +133,12 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
     else:
         story.append(table_meta)
 
-    story.append(Spacer(1, 0.3 * cm))
+    story.append(Spacer(1, 0.2 * cm))
 
     story.append(Paragraph("Frame de Mayor Visualización", styles["h2"]))
-    img_flowable = array_to_flowable(frame_annotated, max_width=11 * cm)
+    img_flowable = array_to_flowable(frame_annotated, max_width=9.5 * cm, max_height=5.2 * cm)
     
-    img_wrapper = Table([[img_flowable]], colWidths=[17.4 * cm])
+    img_wrapper = Table([[img_flowable]], colWidths=[18.0 * cm])
     img_wrapper.setStyle(TableStyle([
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -144,7 +149,7 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
     ]))
     story.append(img_wrapper)
 
-    story.append(Spacer(1, 0.3 * cm))
+    story.append(Spacer(1, 0.2 * cm))
 
     story.append(Paragraph("Características Morfométricas y de Textura", styles["h2"]))
     
@@ -158,12 +163,10 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
         ["Esfericidad", fmt(features.get("ves_sphericity"), 3), "Entropía zona", fmt(features.get("ves_zone_entropy"), 3)],
         ["Aplanamiento", fmt(features.get("ves_flatness"), 3), "-", "-"],
     ]
-    table_metrics = dense_table(combined_metrics, col_widths=[4.5 * cm, 4.2 * cm, 4.5 * cm, 4.2 * cm])
+    table_metrics = dense_table(combined_metrics, col_widths=[4.5 * cm, 4.5 * cm, 4.5 * cm, 4.5 * cm])
     story.append(table_metrics)
 
-   
-
-    story.append(Spacer(1, 0.3 * cm))
+    story.append(Spacer(1, 0.2 * cm))
 
     story.append(Paragraph("Análisis de Cálculos", styles["h2"]))
     if features.get("has_calculi") == 1 and calculi_info:
@@ -174,14 +177,14 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
             ["Entropía (mayor)", fmt(features.get("calc_entropy"), 3)],
             ["Contraste (mayor)", fmt(features.get("calc_contrast"), 3)],
         ]
-        table_calc_summary = dense_table(summary_rows, col_widths=[4.2 * cm, 4.0 * cm])
+        table_calc_summary = dense_table(summary_rows, col_widths=[4.4 * cm, 4.4 * cm])
 
         detail_rows = [["ID", "Diámetro (mm)", "Área (px)"]]
         for c in calculi_info[:3]:
             detail_rows.append([f"C{c['id']}", fmt(c["diam_mm"], 2), str(c["area_px"])])
-        table_calc_detail = dense_table(detail_rows, col_widths=[2.5 * cm, 3.5 * cm, 3.2 * cm], align_center=True)
+        table_calc_detail = dense_table(detail_rows, col_widths=[2.8 * cm, 3.2 * cm, 3.2 * cm], align_center=True)
 
-        calc_side_by_side = Table([[table_calc_summary, table_calc_detail]], colWidths=[8.5 * cm, 8.9 * cm])
+        calc_side_by_side = Table([[table_calc_summary, table_calc_detail]], colWidths=[8.8 * cm, 9.2 * cm])
         calc_side_by_side.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
@@ -193,7 +196,7 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
     else:
         story.append(Paragraph("No se detectaron cálculos en el frame analizado.", styles["body"]))
 
-    story.append(Spacer(1, 0.3 * cm))
+    story.append(Spacer(1, 0.2 * cm))
     
     story.append(Paragraph(
         "Este reporte ha sido generado utilizando modelos de deep learning de la tesis: \"Desarrollo de un software para la evaluación automática de la vesícula biliar utilizando imágenes de ultrasonido obtenidas mediante el protocolo de barrido volumétrico\". Es una herramienta de apoyo diagnóstico basado en IA y no reemplaza el criterio clínico profesional.",
