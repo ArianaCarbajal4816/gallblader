@@ -156,7 +156,7 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
 
     story.append(Spacer(1, 0.2 * cm))
 
-    story.append(Paragraph("Frame de Mayor Visualización", styles["h2"]))
+    story.append(Paragraph("Imagen representativa de vesícula biliar", styles["h2"]))
     img_flowable = array_to_flowable(frame_annotated, max_width=9.5 * cm, max_height=5.2 * cm)
     
     img_wrapper = Table([[img_flowable]], colWidths=[18.0 * cm])
