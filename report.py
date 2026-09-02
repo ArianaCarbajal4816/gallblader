@@ -14,25 +14,50 @@ PERU_TZ = timezone(timedelta(hours=-5))
 
 def build_styles():
     base = getSampleStyleSheet()
+    
+
+    style_title = ParagraphStyle("CustomTitle", parent=base["Title"], fontSize=14,
+                                 textColor=colors.HexColor("#1f3864"),
+                                 alignment=TA_CENTER, spaceAfter=2, leading=16)
+    
+    style_subtitle = ParagraphStyle("CustomSubtitle", parent=base["Normal"], fontSize=8,
+                                    textColor=colors.HexColor("#666666"),
+                                    alignment=TA_CENTER, spaceAfter=6, leading=10)
+    
+    style_h2 = ParagraphStyle("CustomH2", parent=base["Heading2"], fontSize=10,
+                              textColor=colors.HexColor("#2d5a96"), spaceBefore=3, spaceAfter=2, leading=12)
+    
+    style_body = ParagraphStyle("CustomBody", parent=base["Normal"], fontSize=8,
+                                textColor=colors.HexColor("#222222"), leading=10)
+    
+    style_table_text = ParagraphStyle("CustomTableText", parent=base["Normal"], fontSize=7.5,
+                                      textColor=colors.HexColor("#222222"), leading=9)
+    
+    style_small = ParagraphStyle("CustomSmall", parent=base["Normal"], fontSize=6.5,
+                                 textColor=colors.HexColor("#777777"),
+                                 alignment=TA_CENTER, leading=8)
+    
+    style_diag_header = ParagraphStyle("CustomDiagHeader", parent=base["Normal"], fontSize=10,
+                                       textColor=colors.HexColor("#1f3864"),
+                                       alignment=TA_CENTER, spaceAfter=4, leading=12)
+
+    
+    base.add(style_title)
+    base.add(style_subtitle)
+    base.add(style_h2)
+    base.add(style_body)
+    base.add(style_table_text)
+    base.add(style_small)
+    base.add(style_diag_header)
+
     styles = {
-        "title": ParagraphStyle("Title", parent=base["Title"], fontSize=14,
-                                textColor=colors.HexColor("#1f3864"),
-                                alignment=TA_CENTER, spaceAfter=2, leading=16),
-        "subtitle": ParagraphStyle("Subtitle", parent=base["Normal"], fontSize=8,
-                                   textColor=colors.HexColor("#666666"),
-                                   alignment=TA_CENTER, spaceAfter=6, leading=10),
-        "h2": ParagraphStyle("H2", parent=base["Heading2"], fontSize=10,
-                             textColor=colors.HexColor("#2d5a96"), spaceBefore=3, spaceAfter=2, leading=12),
-        "body": ParagraphStyle("Body", parent=base["Normal"], fontSize=8,
-                               textColor=colors.HexColor("#222222"), leading=10),
-        "table_text": ParagraphStyle("TableText", parent=base["Normal"], fontSize=7.5,
-                                     textColor=colors.HexColor("#222222"), leading=9),
-        "small": ParagraphStyle("Small", parent=base["Normal"], fontSize=6.5,
-                                textColor=colors.HexColor("#777777"),
-                                alignment=TA_CENTER, leading=8),
-        "diag_header": ParagraphStyle("DiagHeader", parent=base["Normal"], fontSize=10,
-                                      textColor=colors.HexColor("#1f3864"),
-                                      alignment=TA_CENTER, spaceAfter=4, leading=12),
+        "title": base["CustomTitle"],
+        "subtitle": base["CustomSubtitle"],
+        "h2": base["CustomH2"],
+        "body": base["CustomBody"],
+        "table_text": base["CustomTableText"],
+        "small": base["CustomSmall"],
+        "diag_header": base["CustomDiagHeader"],
     }
     return styles
 
