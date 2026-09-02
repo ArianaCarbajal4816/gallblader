@@ -399,8 +399,8 @@ with tab2:
 
             if clf.get("prob_normal") is not None:
                 cc1, cc2 = st.columns(2)
-                cc1.metric("Probabilidad normal", f"{clf['prob_normal']*100:.1f} %")
-                cc2.metric("Probabilidad litiasis", f"{clf['prob_litiasis']*100:.1f} %")
+                cc1.metric("Probabilidad vesiçula sana", f"{clf['prob_normal']*100:.1f} %")
+                cc2.metric("Probabilidad litiasis vesicular", f"{clf['prob_litiasis']*100:.1f} %")
 
         st.markdown("---")
         st.markdown("### Detalle de características")
