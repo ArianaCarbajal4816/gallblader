@@ -366,7 +366,7 @@ with tab2:
                 )
 
         st.markdown("---")
-        st.markdown("### Frame de mayor visualización")
+        st.markdown("### Imagen representativa de vesícula biliar")
 
         feat = st.session_state.features_result
         best = st.session_state.best_frame
