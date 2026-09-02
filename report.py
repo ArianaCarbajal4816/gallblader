@@ -153,7 +153,7 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
         ["Morfometría", "Valor", "Textura", "Valor"],
         ["Área", fmt(features.get("ves_area_mm2"), 2, " mm²"), "Intensidad media", fmt(features.get("ves_mean"), 2)],
         ["Largo (eje mayor)", fmt(features.get("ves_major_mm"), 2, " mm"), "Desv. estándar", fmt(features.get("ves_std"), 2)],
-        ["Ancho (eje menor)", fmt(features.get("ves_minor_mm"), 2, " mm"), "Entropía (1st-ord)", fmt(features.get("ves_entropy"), 3)],
+        ["Ancho (eje menor)", fmt(features.get("ves_minor_mm"), 2, " mm"), "Entropía ", fmt(features.get("ves_entropy"), 3)],
         ["Razón de aspecto", fmt(features.get("ves_aspect_ratio"), 3), "Contraste (GLCM)", fmt(features.get("ves_contrast"), 3)],
         ["Elongación", fmt(features.get("ves_elongation"), 3), "Homogeneidad", fmt(features.get("ves_homogeneity"), 3)],
         ["Esfericidad", fmt(features.get("ves_sphericity"), 3), "Entropía zona", fmt(features.get("ves_zone_entropy"), 3)],
@@ -168,10 +168,10 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
     if features.get("has_calculi") == 1 and calculi_info:
         summary_rows = [
             ["Resumen", "Valor"],
-            ["Detectados", str(int(features.get("num_calculi", 0)))],
-            ["Diámetro máx.", fmt(features.get("max_calc_diam_mm"), 2, " mm")],
-            ["Entropía (mayor)", fmt(features.get("calc_entropy"), 3)],
-            ["Contraste (mayor)", fmt(features.get("calc_contrast"), 3)],
+            ["Número de cálculos", str(int(features.get("num_calculi", 0)))],
+            ["Diámetro de cálculo mayor", fmt(features.get("max_calc_diam_mm"), 2, " mm")],
+            ["Entropía de cálculo mayor", fmt(features.get("calc_entropy"), 3)],
+            ["Contraste de cálculo mayor", fmt(features.get("calc_contrast"), 3)],
         ]
         table_calc_summary = dense_table(summary_rows, col_widths=[4.4 * cm, 4.4 * cm])
 
