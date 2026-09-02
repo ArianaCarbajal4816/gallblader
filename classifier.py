@@ -34,7 +34,7 @@ def predict_label(features_dict, mode):
         prob_normal = None
         prob_litiasis = None
 
-    label_text = "Litiasis Vesicular" if pred == 1 else "Vesicula Normal"
+    label_text = "Litiasis Vesicular" if pred == 1 else "Vesícula sana"
 
     return {
         "prediction": pred,
