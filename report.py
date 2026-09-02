@@ -108,14 +108,12 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
     
     table_meta = dense_table(meta_rows, col_widths=[6.0 * cm, 12.0 * cm])
     story.append(table_meta)
-
     story.append(Spacer(1, 0.2 * cm))
 
-
-    if classification is not None:
-        story.append(Paragraph("Resultados de Diagnóstico Asistido", styles["h2"]))
-        
-        raw_label = classification.get('label', '')
+    story.append(Paragraph("Resultados de Diagnóstico Asistido", styles["h2"]))
+    
+    if classification:
+        raw_label = classification.get('label', 'N/D')
         clean_label = raw_label.replace("Vesicula", "Vesícula").replace("vesicula", "vesícula")
         
         diag_p = Paragraph(f"<b>Diagnóstico:</b> {clean_label}", styles["diag_header"])
@@ -128,9 +126,11 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
             
         table_prob = dense_table(prob_rows, col_widths=[9.0 * cm, 9.0 * cm], align_center=True)
         story.append(table_prob)
-        story.append(Spacer(1, 0.2 * cm))
+    else:
+        story.append(Paragraph("Sin clasificación disponible para este estudio.", styles["body"]))
 
-  
+    story.append(Spacer(1, 0.2 * cm))
+
     story.append(Paragraph("Frame de Mayor Visualización", styles["h2"]))
     img_flowable = array_to_flowable(frame_annotated, max_width=9.5 * cm, max_height=5.2 * cm)
     
@@ -164,7 +164,6 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
 
     story.append(Spacer(1, 0.2 * cm))
 
-
     story.append(Paragraph("Análisis de Cálculos", styles["h2"]))
     if features.get("has_calculi") == 1 and calculi_info:
         summary_rows = [
@@ -195,7 +194,6 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
 
     story.append(Spacer(1, 0.2 * cm))
     
-   
     story.append(Paragraph(
         "Este reporte ha sido generado utilizando modelos de deep learning de la tesis: \"Desarrollo de un software para la evaluación automática de la vesícula biliar utilizando imágenes de ultrasonido obtenidas mediante el protocolo de barrido volumétrico\". Es una herramienta de apoyo diagnóstico basado en IA y no reemplaza el criterio clínico profesional.",
         styles["small"]
