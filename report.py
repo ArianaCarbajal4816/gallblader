@@ -18,19 +18,19 @@ def build_styles():
         "title": ParagraphStyle("Title", parent=base["Title"], fontSize=14,
                                 textColor=colors.HexColor("#1f3864"),
                                 alignment=TA_CENTER, spaceAfter=2, leading=16),
-        "subtitle": ParagraphStyle("Subtitle", parent=base["Normal"], fontSize=8,
+        "subtitle": ParagraphStyle("Subtitle", parent=base["Vesícula sana"], fontSize=8,
                                    textColor=colors.HexColor("#666666"),
                                    alignment=TA_CENTER, spaceAfter=6, leading=10),
         "h2": ParagraphStyle("H2", parent=base["Heading2"], fontSize=10,
                              textColor=colors.HexColor("#2d5a96"), spaceBefore=3, spaceAfter=2, leading=12),
-        "body": ParagraphStyle("Body", parent=base["Normal"], fontSize=8,
+        "body": ParagraphStyle("Body", parent=base["Vesícula sana"], fontSize=8,
                                textColor=colors.HexColor("#222222"), leading=10),
-        "table_text": ParagraphStyle("TableText", parent=base["Normal"], fontSize=7.5,
+        "table_text": ParagraphStyle("TableText", parent=base["Vesícula sana"], fontSize=7.5,
                                      textColor=colors.HexColor("#222222"), leading=9),
-        "small": ParagraphStyle("Small", parent=base["Normal"], fontSize=6.5,
+        "small": ParagraphStyle("Small", parent=base["Vesícula sana"], fontSize=6.5,
                                 textColor=colors.HexColor("#777777"),
                                 alignment=TA_CENTER, leading=8),
-        "diag_header": ParagraphStyle("DiagHeader", parent=base["Normal"], fontSize=10,
+        "diag_header": ParagraphStyle("DiagHeader", parent=base["Vesícula sana"], fontSize=10,
                                       textColor=colors.HexColor("#1f3864"),
                                       alignment=TA_CENTER, spaceAfter=4, leading=12),
     }
@@ -121,7 +121,7 @@ def generate_report(output_path, frame_annotated, features, calculi_info,
         
         prob_rows = [["Etiqueta", "Probabilidad"]]
         if classification.get("prob_normal") is not None:
-            prob_rows.append(["Vesícula normal", fmt(classification["prob_normal"] * 100, 1, " %")])
+            prob_rows.append(["Vesícula sana", fmt(classification["prob_normal"] * 100, 1, " %")])
             prob_rows.append(["Litiasis vesicular", fmt(classification["prob_litiasis"] * 100, 1, " %")])
             
         table_prob = dense_table(prob_rows, col_widths=[9.0 * cm, 9.0 * cm], align_center=True)
