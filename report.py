@@ -18,7 +18,7 @@ def build_styles():
         "title": ParagraphStyle("Title", parent=base["Title"], fontSize=14,
                                 textColor=colors.HexColor("#1f3864"),
                                 alignment=TA_CENTER, spaceAfter=2, leading=16),
-        "subtitle": ParagraphStyle("Subtitle", parent=base["Vesícula sana"], fontSize=8,
+        "subtitle": ParagraphStyle("Subtitle", parent=base["Normal"], fontSize=8,
                                    textColor=colors.HexColor("#666666"),
                                    alignment=TA_CENTER, spaceAfter=6, leading=10),
         "h2": ParagraphStyle("H2", parent=base["Heading2"], fontSize=10,
