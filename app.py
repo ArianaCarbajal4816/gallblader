@@ -226,9 +226,9 @@ with tab1:
 
         if st.session_state.use_classifier:
             clf_method = (
-                " (XGBoost basado en segmentación)"
+                " - Basado en segmentación"
                 if st.session_state.clf_mode == "full"
-                else " (XGBoost basado en radiómica)"
+                else " - Basado en radiómica"
             )
 
         st.markdown(
