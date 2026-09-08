@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import cv2
 import subprocess
-import shutil
+from imageio_ffmpeg import get_ffmpeg_exe
 from pathlib import Path
 from PIL import Image, ImageEnhance
 from torchvision import transforms
@@ -79,20 +79,33 @@ def overlay_mask(frame_rgb, mask, alpha=0.5):
 
 
 def reencode_h264(input_path, output_path):
-    if not shutil.which("ffmpeg"):
-        return False
     try:
+        ffmpeg_exe = get_ffmpeg_exe()
+
         result = subprocess.run(
             [
-                "ffmpeg", "-y", "-i", str(input_path),
-                "-vcodec", "libx264", "-pix_fmt", "yuv420p",
-                "-preset", "fast", "-crf", "23",
+                ffmpeg_exe,
+                "-y",
+                "-i", str(input_path),
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-preset", "fast",
+                "-crf", "23",
                 "-movflags", "+faststart",
+                "-an",
                 str(output_path)
             ],
-            capture_output=True, timeout=300
+            capture_output=True,
+            text=True,
+            timeout=300
         )
-        return result.returncode == 0 and Path(output_path).exists()
+
+        return (
+            result.returncode == 0
+            and Path(output_path).exists()
+            and Path(output_path).stat().st_size > 0
+        )
+
     except Exception:
         return False
 
