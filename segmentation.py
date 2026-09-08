@@ -72,8 +72,9 @@ def mask_to_rgb(mask):
     return rgb
 
 
-def overlay_mask(frame_rgb, mask, alpha=0.5):
+def overlay_mask(frame_rgb, mask):
     rgb_mask = mask_to_rgb(mask)
+    alpha=0.5
     blended = cv2.addWeighted(frame_rgb.astype(np.uint8), 1 - alpha, rgb_mask, alpha, 0)
     return blended
 
@@ -110,7 +111,7 @@ def reencode_h264(input_path, output_path):
         return False
 
 
-def segment_video(video_path, output_path, model_type, opacity=0.5, progress_callback=None):
+def segment_video(video_path, output_path, model_type, progress_callback=None):
     if model_type == "multiclass":
         model = load_multiclass_model()
         m1, m2 = None, None
@@ -142,7 +143,7 @@ def segment_video(video_path, output_path, model_type, opacity=0.5, progress_cal
         else:
             mask = predict_cascade(tensor, m1, m2)
 
-        overlay = overlay_mask(rgb_frame, mask, alpha=opacity)
+        overlay = overlay_mask(rgb_frame, mask)
         combined = np.concatenate((rgb_frame, overlay), axis=1)
         combined_bgr = cv2.cvtColor(combined, cv2.COLOR_RGB2BGR)
         out.write(combined_bgr)
