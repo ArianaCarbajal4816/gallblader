@@ -214,8 +214,8 @@ with tab1:
     with col_a:
         st.markdown(
             "<div class='info-card'><b>Flujo del análisis</b><br>"
-            "1. Carga un video ecográfico (.mp4, .avi, .mov)<br>"
-            "2. Configura el modelo en la barra lateral<br>"
+            "1. Configura el modelo en la barra lateral<br>"
+            "2. Carga un video ecográfico (.mp4, .avi)<br>"
             "3. Procesa y revisa los resultados<br>"
             "4. Exporta el reporte clínico en PDF</div>",
             unsafe_allow_html=True
@@ -241,7 +241,7 @@ with tab1:
     st.markdown("### Carga del video")
     video_file = st.file_uploader(
         "Selecciona un video ecográfico",
-        type=["mp4", "avi", "mov"],
+        type=["mp4", "avi"],
         label_visibility="collapsed"
     )
 
