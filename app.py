@@ -192,8 +192,7 @@ with st.sidebar:
         )
         st.session_state.clf_mode = "full" if "segmentación" in clf_choice else "vesicle"
 
-    st.markdown("#### Visualización")
-    opacity = st.slider("Opacidad de la máscara", 0.0, 1.0, 0.5, 0.05)
+    
 
     st.markdown("---")
     st.markdown("#### Leyenda")
@@ -223,11 +222,19 @@ with tab1:
         )
     with col_b:
         clf_label = "Sí" if st.session_state.use_classifier else "No"
+        clf_method = ""
+
+        if st.session_state.use_classifier:
+            clf_method = (
+                " (XGBoost basado en segmentación)"
+                if st.session_state.clf_mode == "full"
+                else " (XGBoost basado en radiómica)"
+            )
+
         st.markdown(
             f"<div class='info-card'><b>Configuración activa</b><br>"
             f"Segmentación: {seg_choice}<br>"
-            f"Clasificación: {clf_label}<br>"
-            f"Opacidad de máscara: {int(opacity*100)}%</div>",
+            f"Clasificación: {clf_label}{clf_method}</div>",
             unsafe_allow_html=True
         )
 
@@ -299,7 +306,6 @@ with tab1:
                 st.session_state.video_path,
                 seg_video_path,
                 model_type=st.session_state.seg_mode,
-                opacity=opacity,
                 progress_callback=lambda p: progress.progress(min(p, 1.0))
             )
 
