@@ -460,6 +460,8 @@ with tab2:
         with c2:
             st.markdown("#### Intensidad")
             st.table(pd.DataFrame(intensity_data))
+            st.markdown("#### Textura")
+            st.table(pd.DataFrame(texture_data))
         
         if feat["calculi_info"]:
             st.markdown("#### Detalle de cálculos")
