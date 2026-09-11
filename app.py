@@ -443,7 +443,7 @@ with tab2:
             st.markdown("#### Morfometría")
             st.table(pd.DataFrame(morpho_data))
         with c2:
-            st.markdown("#### Textura")
+            st.markdown("#### Intensidad y textura")
             st.table(pd.DataFrame(texture_data))
 
         if feat["calculi_info"]:
