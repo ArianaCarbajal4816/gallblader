@@ -426,8 +426,8 @@ with tab2:
             ]
         }
         texture_data = {
-            "Característica": ["Intensidad media", "Desviación estándar",
-                              "Entropía first-order", "Contraste GLCM",
+            "Característica": ["Intensidad media", "Desviación estándar de intensidad",
+                              "Entropía de primer orden", "Contraste GLCM",
                               "Homogeneidad GLCM", "Entropía de zona"],
             "Valor": [
                 f"{f.get('ves_mean', 0):.2f}",
