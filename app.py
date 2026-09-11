@@ -425,27 +425,42 @@ with tab2:
                 f"{f.get('ves_flatness', 0):.3f}",
             ]
         }
-        texture_data = {
-            "Característica": ["Intensidad media", "Desviación estándar de intensidad",
-                              "Entropía de primer orden", "Contraste GLCM",
-                              "Homogeneidad GLCM", "Entropía de zona"],
+  
+        intensity_data = {
+            "Característica": [
+                "Intensidad media",
+                "Desviación estándar de intensidad",
+                "Entropía de primer orden",
+            ],
             "Valor": [
                 f"{f.get('ves_mean', 0):.2f}",
                 f"{f.get('ves_std', 0):.2f}",
                 f"{f.get('ves_entropy', 0):.3f}",
+            ],
+        }
+        
+        texture_data = {
+            "Característica": [
+                "Contraste GLCM",
+                "Homogeneidad GLCM",
+                "Entropía de zona",
+            ],
+            "Valor": [
                 f"{f.get('ves_contrast', 0):.3f}",
                 f"{f.get('ves_homogeneity', 0):.3f}",
                 f"{f.get('ves_zone_entropy', 0):.3f}",
-            ]
+            ],
         }
+        
         c1, c2 = st.columns(2)
+        
         with c1:
             st.markdown("#### Morfometría")
             st.table(pd.DataFrame(morpho_data))
         with c2:
-            st.markdown("#### Intensidad y textura")
-            st.table(pd.DataFrame(texture_data))
-
+            st.markdown("#### Intensidad")
+            st.table(pd.DataFrame(intensity_data))
+        
         if feat["calculi_info"]:
             st.markdown("#### Detalle de cálculos")
             calc_df = pd.DataFrame([
